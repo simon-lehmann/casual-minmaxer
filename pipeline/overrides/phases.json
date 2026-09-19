@@ -1,0 +1,13 @@
+{
+  "_comment": "Content phase rules (docs/ARCHITECTURE.md 6.7). maps: map id -> phase for B/T sources. name_prefix: item name prefix -> phase. items: item id -> phase. badge_vendor: extended-cost-only vendor items whose ilvl is listed get that phase.",
+  "maps": { "585": 5 },
+  "name_prefix": {
+    "Merciless Gladiator's": 2,
+    "Vengeful Gladiator's": 3,
+    "Brutal Gladiator's": 5,
+    "Guardian's": 3,
+    "Vindicator's": 5
+  },
+  "items": {},
+  "badge_vendor": { "128": 4, "141": 5, "159": 5 }
+}

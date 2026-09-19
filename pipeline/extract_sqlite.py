@@ -47,7 +47,7 @@ TABLES = {
     "conditions": None,
     # spell_template is wide; keep the columns the pipeline reads
     "spell_template": (
-        "Id, SpellName, Rank1, SpellLevel, BaseLevel, Attributes, "
+        "Id, SpellName, Rank1, SpellLevel, BaseLevel, Attributes, Stances, "
         "Effect1, Effect2, Effect3, EffectApplyAuraName1, EffectApplyAuraName2, EffectApplyAuraName3, "
         "EffectBasePoints1, EffectBasePoints2, EffectBasePoints3, EffectDieSides1, EffectDieSides2, EffectDieSides3, "
         "EffectMiscValue1, EffectMiscValue2, EffectMiscValue3, EffectMiscValueB1, EffectMiscValueB2, EffectMiscValueB3, "

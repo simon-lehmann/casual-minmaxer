@@ -1,0 +1,48 @@
+## Interface: 20505
+## Title: Casual MinMaxer Data
+## Notes: Item, quest and dungeon data for Casual MinMaxer (generated from CMaNGOS TBC-DB, GPL-3).
+## Author: Simon Lehmann
+## Version: @project-version@
+## LoadOnDemand: 1
+## Dependencies: CasualMinMaxer
+## X-License: GPL-3.0-or-later
+## X-Data-Built: 2026-09-19
+
+Meta.lua
+Items_Head.lua
+Sources_Head.lua
+Items_Neck.lua
+Sources_Neck.lua
+Items_Shoulder.lua
+Sources_Shoulder.lua
+Items_Back.lua
+Sources_Back.lua
+Items_Chest.lua
+Sources_Chest.lua
+Items_Wrist.lua
+Sources_Wrist.lua
+Items_Hands.lua
+Sources_Hands.lua
+Items_Waist.lua
+Sources_Waist.lua
+Items_Legs.lua
+Sources_Legs.lua
+Items_Feet.lua
+Sources_Feet.lua
+Items_Finger.lua
+Sources_Finger.lua
+Items_Trinket.lua
+Sources_Trinket.lua
+Items_Weapon.lua
+Sources_Weapon.lua
+Items_OffhandArmor.lua
+Sources_OffhandArmor.lua
+Items_Ranged.lua
+Sources_Ranged.lua
+Quests.lua
+Npcs.lua
+Bosses.lua
+Dungeons.lua
+Objects.lua
+Zones.lua
+Specials.lua
