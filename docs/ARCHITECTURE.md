@@ -122,7 +122,7 @@ never contain `;` `,` `:` `|` (the pipeline strips them from names).
 | 6 | ilvl | item level |
 | 7 | req | required character level |
 | 8 | classmask | AllowableClass; 0 = any class. Bits: 1 Warrior, 2 Paladin, 4 Hunter, 8 Rogue, 16 Priest, 64 Shaman, 128 Mage, 256 Warlock, 1024 Druid |
-| 9 | flags | bit sum: 1 unique-equipped, 2 BoE, 4 BoP, 8 set piece, 16 special effect not scored (use/proc/chance-on-hit/unknown aura), 32 heroic-only source |
+| 9 | flags | bit sum: 1 unique-equipped, 2 BoE, 4 BoP, 8 set piece, 16 special effect not scored (use/proc/chance-on-hit/unknown aura), 32 heroic-only source, 64 Alliance-only item (AllowableRace), 128 Horde-only item |
 | 10 | stats | `STA:27,AGI:18,AP:36,DPS:56.3,SPEED:2.6` (keys from §2, empty allowed) |
 | 11 | sockets | letters in socket order: R red, Y yellow, B blue, M meta; empty if none |
 | 12 | sbonus | socket bonus enchantment id, 0 if none |
@@ -142,9 +142,9 @@ Ranged (15/25/26/28). The split is for file size only; every file writes into `D
 | N | `N<npcEntry>:<pct>` | named open-world creature drop with pct ≥ 1 (not boss, not rare) |
 | T | `T<mapId>:<pct>` | dungeon trash drop; pct = highest per-mob chance on that map |
 | G | `G<goEntry>:<pct>` | chest / game object loot |
-| V | `V<price>:<mode>` | vendor. price in copper; mode 0 = gold, E = extended cost (badges, honor, arena, tokens), `F<factionId>-<rank>` = reputation vendor (rank 4 friendly .. 7 exalted) |
+| V | `V<price>:<mode>` | vendor. price in copper; mode 0 = gold, E = extended cost (badges, honor, arena, tokens), `F<factionId>-<rank>` = reputation vendor (rank 4 friendly .. 7 exalted). When both rep and extended cost apply, rep wins |
 | K | `K<skillLine>:<skill>` | crafted; skill line 171 Alchemy, 164 Blacksmithing, 333 Enchanting, 202 Engineering, 165 Leatherworking, 197 Tailoring, 755 Jewelcrafting |
-| W | `W<pct>` | world drop (BoE from generic loot references or ≥ 5 different creatures), pct = highest single-mob chance |
+| W | `W<pct>` | world drop: a reference loot table shared by ≥ 5 loot owners outside one instance, outdoor chests, or ≥ 5 different creatures; pct = highest single-mob chance. N sources are capped at the 5 best creatures |
 
 An item with no source is not shipped. Sources are sorted best-first by the pipeline (Q, K, V, B, G, R, N, T, W)
 but the addon recomputes the best source per character.

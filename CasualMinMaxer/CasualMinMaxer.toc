@@ -13,9 +13,9 @@
 ## IconTexture: Interface\Icons\INV_Misc_EngGizmos_30
 
 Libs\embeds.xml
+Init.lua
 Locales\enUS.lua
 Locales\deDE.lua
-Init.lua
 Compat.lua
 Constants.lua
 Ratings.lua
