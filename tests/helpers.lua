@@ -21,8 +21,12 @@ function H.LoadAddon(opts)
     local isUI = f:match("^UI/") or f:match("embeds%.xml") or f:match("^Libs/")
     if f:match("%.lua$") and (not isUI or opts.ui) then
       local chunk, err = loadfile("CasualMinMaxer/" .. f)
-      assert(chunk, err)
-      chunk(H.ADDON, ns)
+      -- opts.skipMissing: tolerate files that another agent has not written yet (UI-only runs)
+      if chunk then
+        chunk(H.ADDON, ns)
+      elseif not (opts.skipMissing and err and err:find("No such file")) then
+        assert(chunk, err)
+      end
     end
   end
   H.ns = ns

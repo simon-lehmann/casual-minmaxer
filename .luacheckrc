@@ -45,4 +45,10 @@ read_globals = {
   "GetTalentInfo", "GetNumTalents", "QuestFrame", "QuestRewardScrollChildFrame", "QuestInfoRewardsFrame",
   "SquareButton_SetIcon", "UIParentLoadAddOn", "ReloadUI", "print", "StaticPopupDialogs", "unpack",
   "GameTooltipTextLeft1", "GameTooltipTextLeft2", "CMM_TEST_ENV",
+  -- UI additions
+  "GetNumQuestLogChoices", "GetQuestLogItemLink", "GetItemIcon", "ShoppingTooltip1", "ShoppingTooltip2",
+  "QuestInfo_Display", "InterfaceOptionsFramePanelContainer",
 }
+
+files["tests/spec"] = { std = "+busted" }
+files["tests/helpers.lua"] = { std = "+busted" }
