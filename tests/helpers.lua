@@ -16,17 +16,80 @@ end
 function H.LoadAddon(opts)
   opts = opts or {}
   H.wow.Reset()
-  local ns = {}
+  -- NOTE: the .toc currently lists Locales/*.lua before Init.lua; Init creates CMM.L with `CMM.L or`,
+  -- so pre-seeding it here mirrors what the fixed load order produces in game.
+  local ns = { L = setmetatable({}, { __index = function(_, k) return k end }) }
   for _, f in ipairs(tocFiles("CasualMinMaxer/CasualMinMaxer.toc")) do
     local isUI = f:match("^UI/") or f:match("embeds%.xml") or f:match("^Libs/")
     if f:match("%.lua$") and (not isUI or opts.ui) then
-      local chunk, err = loadfile("CasualMinMaxer/" .. f)
-      assert(chunk, err)
-      chunk(H.ADDON, ns)
+      local path = "CasualMinMaxer/" .. f
+      local fh = io.open(path, "r")
+      if fh then
+        fh:close()
+        local chunk, err = loadfile(path)
+        assert(chunk, err)
+        chunk(H.ADDON, ns)
+      elseif not opts.allowMissing then
+        error("missing addon file " .. path)
+      end
     end
   end
   H.ns = ns
+  _G.CasualMinMaxer = ns
   return ns
+end
+
+-- Loads the addon, installs the fixture data pack, initializes SavedVariables and refreshes the player.
+-- Returns the namespace. opts.player mutates the stub player before the refresh.
+H.DEFAULT_PLAYER = {
+  class = "Warrior", classToken = "WARRIOR", classId = 1, level = 62, faction = "Alliance",
+  race = "Human", raceToken = "Human", name = "Tester", realm = "Test",
+  talents = { { "Arms", 31 }, { "Fury", 12 }, { "Protection", 0 } },
+  skills = { { "Blacksmithing", 300, 375 }, { "Mining", 300, 375 } },
+  zone = "Zangarmarsh",
+}
+
+function H.ResetPlayer()
+  local p = H.wow.player
+  for k, v in pairs(H.DEFAULT_PLAYER) do
+    if type(v) == "table" then
+      local c = {}
+      for i, x in ipairs(v) do c[i] = type(x) == "table" and { x[1], x[2], x[3] } or x end
+      p[k] = c
+    else
+      p[k] = v
+    end
+  end
+  p.equipped, p.completedQuests, p.factions = {}, {}, {}
+end
+
+function H.Boot(opts)
+  opts = opts or {}
+  local ns = H.LoadAddon(opts)
+  H.ResetPlayer()
+  H.LoadFixtureData()
+  if opts.player then for k, v in pairs(opts.player) do H.wow.player[k] = v end end
+  ns.Core.InitSavedVariables()
+  ns.Player.Refresh()
+  ns.Data.Load()
+  return ns
+end
+
+-- Simulates a missing / disabled data addon after it was loaded once in this test.
+function H.RemoveData(ns)
+  ns.Data.Unload()
+  H.wow.dataLoader = nil
+  H.wow.loadedAddons = {}
+  _G.CasualMinMaxer_Data = nil
+end
+
+-- Convenience: a scoring context for the current player.
+function H.Ctx(ns, slotKey, overrides)
+  local p = ns.Player.Get()
+  local ctx = { level = p.level, weights = ns.Core.ActiveWeights(), class = p.class, spec = p.spec, slotKey = slotKey or "HEAD",
+    weightsAt = ns.Core.ActiveWeightsAt, phase = 5 }
+  for k, v in pairs(overrides or {}) do ctx[k] = v end
+  return ctx
 end
 
 -- Install a fixture data pack: fn receives the table that becomes CasualMinMaxer_Data
