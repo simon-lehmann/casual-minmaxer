@@ -1,4 +1,4 @@
-## Interface: 20505
+## Interface: 20506
 ## Title: Casual MinMaxer
 ## Notes: Click a slot, get the biggest upgrades you can actually get. Ranked by stats, tagged by how hard they are to obtain.
 ## Notes-deDE: Slot anklicken, die größten erreichbaren Upgrades sehen. Nach Werten sortiert, mit Beschaffungsaufwand.

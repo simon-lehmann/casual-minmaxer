@@ -45,7 +45,7 @@ _G.date = os.date
 _G.time = os.time
 
 -- Client identity
-M.build = { version = "2.5.5", build = "60000", date = "Sep 1 2026", interface = 20505 }
+M.build = { version = "2.5.6", build = "69795", date = "Sep 1 2026", interface = 20506 }
 _G.GetBuildInfo = function() return M.build.version, M.build.build, M.build.date, M.build.interface end
 _G.GetLocale = function() return "enUS" end
 _G.WOW_PROJECT_ID = 5

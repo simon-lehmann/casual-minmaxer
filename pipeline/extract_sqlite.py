@@ -42,6 +42,7 @@ TABLES = {
     "gameobject_questrelation": None,
     "gameobject_involvedrelation": None,
     "skill_extra_item_template": None,
+    "item_enchantment_template": None,
     "game_event_creature": None,
     "game_event": None,
     "conditions": None,
