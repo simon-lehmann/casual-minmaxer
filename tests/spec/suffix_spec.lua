@@ -69,29 +69,97 @@ describe("Random suffix support", function()
       return CMM.Query.Run("CHEST", CMM.Player.Get(), { filters = filters, lookahead = 2 }).rows
     end
 
-    it("lists one row per useful suffix, capped at the best three", function()
+    it("emits one row per base item: the best suffix, with the other upgrades as alternatives", function()
       local rows = chestRows({ S = true, W = true })
       local suffixRows = {}
       for _, r in ipairs(rows) do if r.id == 30050 then suffixRows[#suffixRows + 1] = r end end
-      assert.equals(3, #suffixRows)
-      assert.is_true(#suffixRows <= CMM.Query.MAX_SUFFIX_ROWS)
-      -- Bear (STR 30 STA 46) beats Monkey (AGI 30 STA 46) beats Falcon for Arms test weights
-      assert.equals(-7, suffixRows[1].suffix)
-      assert.equals("Fixture Mail Chest of the Bear", suffixRows[1].item.name)
-      assert.equals("item:30050:0:0:0:0:0:-7", suffixRows[1].link)
-      assert.equals("Auction house", suffixRows[1].obtain.text)
-      for _, r in ipairs(suffixRows) do
-        assert.is_true(r.gain > 0)
-        assert.is_true(r.score > suffixRows[#suffixRows].score - 1e-9)
-      end
-      assert.is_true(suffixRows[1].score > suffixRows[2].score)
+      assert.equals(1, #suffixRows)
+      local row = suffixRows[1]
+      -- Bear (STR 30 STA 46) beats Monkey (AGI 30 STA 46) for Arms test weights; Falcon (0.3 %) is below minChancePct
+      assert.equals(-7, row.suffix)
+      assert.equals(3.0, row.suffixChance)
+      assert.equals("Fixture Mail Chest of the Bear", row.item.name)
+      assert.equals("item:30050:0:0:0:0:0:-7", row.link)
+      assert.equals("Auction house, of the Bear (3% of drops)", row.obtain.text)
+      assert.is_true(row.gain > 0)
+      assert.equals(1, #row.alternatives)
+      assert.equals(-5, row.alternatives[1].id)
+      assert.equals("of the Monkey", row.alternatives[1].name)
+      assert.equals(2.5, row.alternatives[1].chance)
+      assert.is_true(row.alternatives[1].gain > 0 and row.alternatives[1].gain < row.gain)
+      assert.is_truthy(row.alternatives[1].stats.AGI)
       -- the plain base item (armor only) is never listed as such
       for _, r in ipairs(rows) do if r.id == 30050 then assert.is_not_nil(r.suffix) end end
     end)
 
+    it("scales auction minutes by the suffix roll chance", function()
+      local T = CMM.Constants.TIER
+      assert.equals(1, CMM.Obtain.SuffixFactor(3))
+      assert.equals(1, CMM.Obtain.SuffixFactor(10))
+      assert.is_near(2, CMM.Obtain.SuffixFactor(1.5), 1e-9)
+      assert.equals(T.auctionMaxFactor, CMM.Obtain.SuffixFactor(0.01))
+      assert.equals(3, CMM.Obtain.SuffixFactor(nil))
+      local rows = chestRows({ S = true, W = true })
+      local byId = {}
+      for _, r in ipairs(rows) do byId[r.id] = r end
+      -- 30050: Bear at 3 % -> 10 min; 30053: Bear at 1 % (3x) vs Monkey at 6 % (1x): best by efficiency is chosen
+      assert.is_near(T.auction, byId[30050].minutes, 1e-9)
+      assert.is_not_nil(byId[30053])
+      if byId[30053].suffix == -7 then
+        assert.is_near(T.auction * 3, byId[30053].minutes, 1e-9)
+      else
+        assert.is_near(T.auction, byId[30053].minutes, 1e-9)
+      end
+      assert.is_near(byId[30053].gain / (byId[30053].minutes / 60), byId[30053].eff, 1e-6)
+      -- a bare-id pool (no chances) parses, counts as unknown chance (factor 3) and is never chance-filtered
+      local bare = CMM.Data.Item(30054)
+      assert.same({ -7, -5 }, bare.rand)
+      assert.same({}, bare.randChance)
+      assert.is_not_nil(byId[30054])
+      assert.is_nil(byId[30054].suffixChance)
+      assert.is_near(T.auction * 3, byId[30054].minutes, 1e-9)
+      assert.equals("Auction house, of the Bear", byId[30054].obtain.text)
+    end)
+
+    it("drops suffixes below the minimum roll chance and caps auction rows per query", function()
+      local rows = chestRows({ S = true, W = true })
+      local ah = 0
+      for _, r in ipairs(rows) do if r.obtain.src.t == "S" then ah = ah + 1 end end
+      assert.equals(4, ah) -- 30050, 30053, 30054 (bare pool), 30055 (shared pool P-65)
+      local pooled = CMM.Data.Item(30055)
+      assert.same({ -5, -7 }, pooled.rand)
+      assert.equals(6.0, pooled.randChance[-5])
+      CMM.Core.SetRandomLimit("minChancePct", 2.8)
+      rows = chestRows({ S = true, W = true })
+      local byId = {}
+      for _, r in ipairs(rows) do byId[r.id] = r end
+      assert.equals(-7, byId[30050].suffix)
+      assert.equals(0, #byId[30050].alternatives) -- Monkey (2.5 %) filtered out
+      assert.equals(-5, byId[30053].suffix) -- Bear (1 %) filtered out, Monkey (6 %) stays
+      assert.is_not_nil(byId[30054]) -- unknown chance passes
+      CMM.Core.SetRandomLimit("maxAuctionRows", 1)
+      rows = chestRows({ S = true, W = true })
+      ah = 0
+      for _, r in ipairs(rows) do if r.obtain.src.t == "S" then ah = ah + 1 end end
+      assert.equals(1, ah)
+      assert.equals(1, _G.CasualMinMaxerDB.random.maxAuctionRows)
+      local summary = CMM.Query.SlotSummary(CMM.Player.Get(), { filters = { sources = { S = true, W = true },
+        tiers = { true, true, true, true, true }, armor = "all", special = true }, lookahead = 2 })
+      assert.equals(#rows, summary.CHEST.count) -- the slot count reflects the cap
+      CMM.Core.SetRandomLimit("maxAuctionRows", 0)
+      rows = chestRows({ S = true, W = true })
+      for _, r in ipairs(rows) do assert.is_true(r.obtain.src.t ~= "S") end
+      -- saved limits survive a settings re-apply and a reset restores the defaults
+      CMM.Core.ApplySettings()
+      assert.equals(0, CMM.Constants.RANDOM.maxAuctionRows)
+      CMM.Core.ResetSavedVariables()
+      assert.equals(8, CMM.Constants.RANDOM.maxAuctionRows)
+      assert.equals(0.5, CMM.Constants.RANDOM.minChancePct)
+    end)
+
     it("hides suffix rows when the auction house and world drop sources are filtered out", function()
       local rows = chestRows({ S = false, W = false, Q = true, B = true })
-      for _, r in ipairs(rows) do assert.is_true(r.id ~= 30050) end
+      for _, r in ipairs(rows) do assert.is_true(r.id ~= 30050 and r.id ~= 30053 and r.id ~= 30054) end
     end)
 
     it("keeps only suffixes that beat the equipped item", function()

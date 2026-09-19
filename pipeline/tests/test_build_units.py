@@ -285,3 +285,9 @@ def test_rpp_points_and_scaling():
 
 def test_sort_sources_places_auction_after_vendor():
     assert build.sort_sources(["W0.5", "S", "V100:0", "B1:20"]) == ["V100:0", "S", "B1:20", "W0.5"]
+
+
+def test_fmt_rand():
+    assert build.fmt_rand(-7, 2.99) == "-7:3.0"
+    assert build.fmt_rand(584, 12.5) == "584:12.5"
+    assert build.fmt_rand(-7, 0) == "-7"

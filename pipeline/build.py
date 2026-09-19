@@ -121,6 +121,13 @@ def fmt_num(v: float) -> str:
     return f"{v:.1f}".rstrip("0").rstrip(".")
 
 
+def fmt_rand(signed_id: int, chance: float) -> str:
+    """One `rand` entry: `<signed id>:<chance %>` with one decimal; no chance -> bare id."""
+    if not chance:
+        return str(signed_id)
+    return f"{signed_id}:{chance:.1f}"
+
+
 def load_override(name: str, default):
     path = os.path.join(OVERRIDES, name)
     if not os.path.exists(path):
@@ -537,7 +544,7 @@ class Builder:
         self.ench_tmpl = defaultdict(list)
         try:
             for r in self.rows("select entry, ench, chance from item_enchantment_template order by entry, ench"):
-                self.ench_tmpl[r["entry"]].append(r["ench"])
+                self.ench_tmpl[r["entry"]].append((r["ench"], float(r["chance"] or 0)))
         except sqlite3.OperationalError:
             pass
 
@@ -666,19 +673,32 @@ class Builder:
             return None
         return clean(row.get("Name_lang") or ""), stats
 
+    @staticmethod
+    def random_pool_key(it: dict):
+        """Signed pool key: -entry for a RandomSuffix pool, +entry for a RandomProperty pool, 0 for none."""
+        suffix = abs(it.get("RandomSuffix") or 0)
+        prop = it.get("RandomProperty") or 0
+        if suffix:
+            return -suffix
+        if prop > 0:
+            return prop
+        return 0
+
     def random_ids(self, it: dict):
-        """Signed enchant ids an item can roll: negative = ItemRandomSuffix (scaling), positive = ItemRandomProperties."""
+        """(signed id, chance %) an item can roll, chance descending: negative = ItemRandomSuffix (scaling),
+        positive = ItemRandomProperties. chance = item_enchantment_template.chance (percent of drops)."""
         out = []
         suffix = abs(it.get("RandomSuffix") or 0)
         prop = it.get("RandomProperty") or 0
         if suffix:
-            for sid in self.ench_tmpl.get(suffix, []):
+            for sid, chance in self.ench_tmpl.get(suffix, []):
                 if self.suffix_record(sid):
-                    out.append(-sid)
+                    out.append((-sid, chance))
         elif prop > 0:
-            for pid in self.ench_tmpl.get(prop, []):
+            for pid, chance in self.ench_tmpl.get(prop, []):
                 if self.property_record(pid):
-                    out.append(pid)
+                    out.append((pid, chance))
+        out.sort(key=lambda rc: (-rc[1], rc[0]))
         return out
 
     def socket_bonus_stats(self, ench: int):
@@ -911,6 +931,7 @@ class Builder:
         self.out_items = {}
         self.out_src = {}
         self.used_rand, self.used_ilvls, self.used_sbonus = set(), set(), set()
+        self.out_rpool = {}
         for iid, it in items.items():
             srcs = list(sources.get(iid) or [])
             rand = self.random_ids(it)
@@ -937,11 +958,16 @@ class Builder:
             rec = [clean(it["name"]), str(it["InventoryType"]), str(it["class"]), str(it["subclass"] or 0),
                    str(it["Quality"]), str(it["ItemLevel"] or 0), str(it["RequiredLevel"] or 0),
                    str(classmask_field(it["AllowableClass"])), str(flags), stats_to_str(stats), sockets,
-                   str(it["socketBonus"] or 0), str(phase), ",".join(str(r) for r in rand)]
+                   str(it["socketBonus"] or 0), str(phase), ""]
+            if rand:
+                # the pool is shared by every item with the same RandomProperty/RandomSuffix entry
+                pool = self.random_pool_key(it)
+                self.out_rpool[pool] = ",".join(fmt_rand(r, c) for r, c in rand)
+                rec[13] = f"P{pool}"
             self.out_items[iid] = rec
             if rand:
                 self.report["random_items"] += 1
-                for r in rand:
+                for r, _chance in rand:
                     self.used_rand.add(r)
                 self.used_ilvls.add(int(it["ItemLevel"] or 0))
             if (it["socketBonus"] or 0) > 0:
@@ -1105,7 +1131,7 @@ class Builder:
             "local D = CasualMinMaxer_Data",
             "D.items, D.src, D.quests, D.npcs, D.bosses, D.dungeons, D.objects, D.zones, D.specials = "
             "{}, {}, {}, {}, {}, {}, {}, {}, {}",
-            "D.rsuffix, D.rprop, D.randprop, D.sbonus = {}, {}, {}, {}",
+            "D.rsuffix, D.rprop, D.randprop, D.sbonus, D.rpool = {}, {}, {}, {}, {}",
             "D.meta = { version = %s, built = %s, dbVersion = %s, items = %d, quests = %d, phases = 5 }" % (
                 lua_str(meta["version"]), lua_str(meta["built"]), lua_str(meta["dbVersion"]), meta["items"], meta["quests"]),
         ])
@@ -1157,6 +1183,8 @@ class Builder:
                 cols = [";".join([",".join(str(int(row.get(f"{q}_{g}") or 0)) for g in range(5)) for q in ("Epic", "Superior", "Good")])]
                 self.out_randprop[ilvl] = cols[0]
                 rl.append(f"D.randprop[{ilvl}]={lua_str(cols[0])}")
+        for key, rec in sorted(self.out_rpool.items()):
+            rl.append(f"D.rpool[{key}]={lua_str(rec)}")
         w("Random.lua", rl)
         sl = ["local D = CasualMinMaxer_Data"]
         for ench in sorted(self.used_sbonus):
@@ -1191,6 +1219,7 @@ class Builder:
                     "rprop": {str(k): v for k, v in self.out_rprop.items()},
                     "randprop": {str(k): v for k, v in self.out_randprop.items()},
                     "sbonus": {str(k): v for k, v in self.out_sbonus.items()},
+                    "rpool": {str(k): v for k, v in self.out_rpool.items()},
                 }, f, separators=(",", ":"))
         size = sum(os.path.getsize(os.path.join(out_dir, f)) for f in os.listdir(out_dir))
         return meta, size

@@ -51,6 +51,9 @@ function Rows.SourceDetail(row)
     local steps = s.steps or o.steps
     if steps then return string.format(L["%d steps left"], steps) end
     return L["Quest"]
+  elseif t == "S" then
+    local chance = row.suffixChance or (o and o.suffixChance)
+    return chance and string.format("%.1f%%", chance):gsub("%.0%%", "%%") or ""
   elseif t == "B" or t == "R" or t == "N" or t == "T" or t == "G" or t == "W" then
     return s.pct and string.format("%.0f%%", s.pct) or ""
   elseif t == "V" then
@@ -146,7 +149,10 @@ function Rows.DetailLines(row, player)
       mine and string.format(" (%s %d)", L["you have"], mine) or ""), 1, 1, 1)
   elseif t == "S" then
     add(L["Auction house"], 1, 1, 1)
-    add(L["Random-suffix item: any listed suffix can be bought; the best three for you are shown."], 0.8, 0.8, 0.8)
+    add(L["Random-suffix item: the best suffix for you is shown; other good suffixes are listed below."], 0.8, 0.8, 0.8)
+    if row.suffixChance then
+      add(string.format("%s: %.1f%%", L["Roll chance of this suffix"], row.suffixChance), 0.8, 0.8, 0.8)
+    end
   elseif t == "W" then
     add(L["World drop (BoE)"], 1, 0.82, 0)
     add(string.format("%.2f%% %s", s.pct or 0, L["per mob, or buy it on the auction house"]), 1, 1, 1)
@@ -184,6 +190,14 @@ function Rows.DetailLines(row, player)
     for k, v in pairs(row.item.suffixStats) do parts[#parts + 1] = string.format("+%d %s", v, L[k] or k) end
     table.sort(parts)
     add(string.format("%s: %s", call(CMM.Data, "SuffixName", row.suffix) or L["Random suffix"], table.concat(parts, ", ")), 0.6, 1, 0.6)
+    if row.alternatives and #row.alternatives > 0 then
+      local alts = {}
+      for _, a in ipairs(row.alternatives) do
+        alts[#alts + 1] = a.chance and string.format("%s +%.0f (%.1f%%)", a.name, a.gain, a.chance)
+          or string.format("%s +%.0f", a.name, a.gain)
+      end
+      add(string.format("%s: %s", L["Other good suffixes"], table.concat(alts, ", ")), 0.6, 0.9, 0.6)
+    end
   end
   if row.minutes then add(string.format("%s: %s", L["Expected time"], UI.FormatMinutes(row.minutes)), 0.7, 0.7, 0.7) end
   return lines

@@ -131,6 +131,7 @@ function Data.Load()
   D.rsuffix = D.rsuffix or {}
   D.rprop = D.rprop or {}
   D.randprop = D.randprop or {}
+  D.rpool = D.rpool or {}
   D.sbonus = D.sbonus or {}
   D.meta = D.meta or {}
   itemCache, questCache, npcCache, bossCache, objectCache = {}, {}, {}, {}, {}
@@ -151,14 +152,32 @@ function Data.Meta()
   return D and D.meta or {}
 end
 
+-- The item's 14th field is either an inline `<id>:<chance>,...` list or `P<key>` referencing the shared
+-- pool D.rpool[key] (negative key = ItemRandomSuffix pool, positive = ItemRandomProperties pool).
+function Data.RandPool(raw)
+  if not raw or raw == "" then return "" end
+  local key = raw:match("^P(-?%d+)$")
+  if key then return (D and D.rpool and D.rpool[tonumber(key)]) or "" end
+  return raw
+end
+
 local srcMeta = {
   __index = function(item, key)
     if key == "src" then return Data.ParseSources(D.src[item.id]) end
     if key == "rand" and rawget(item, "randRaw") then
       -- random-enchant pool, parsed on access like sources (26 ids per Outland green add up)
       local rand = {}
-      for tok in item.randRaw:gmatch("-?%d+") do rand[#rand + 1] = tonumber(tok) end
+      for tok in Data.RandPool(item.randRaw):gmatch("[^,]+") do rand[#rand + 1] = tonumber(tok:match("^-?%d+")) end
       return rand
+    end
+    if key == "randChance" and rawget(item, "randRaw") then
+      -- signed id -> roll chance in percent of drops (nil when the pack carries bare ids)
+      local chance = {}
+      for tok in Data.RandPool(item.randRaw):gmatch("[^,]+") do
+        local id, pct = tok:match("^(-?%d+):([%d%.]+)$")
+        if id then chance[tonumber(id)] = tonumber(pct) end
+      end
+      return chance
     end
     return nil
   end,
@@ -275,7 +294,9 @@ function Data.WithSuffix(item, id)
   copy.stats = stats
   copy.suffixStats = extra
   copy.suffix = id
+  copy.suffixChance = item.randChance and item.randChance[id] or nil
   copy.rand = false -- a virtual item never expands again
+  copy.randChance = false
   copy.randRaw = nil
   copy.name = item.name .. " " .. (Data.SuffixName(id) or "")
   copy.src = item.src -- parsed list (the base parses on access)

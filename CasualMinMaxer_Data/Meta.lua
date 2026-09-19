@@ -2,5 +2,5 @@
 CasualMinMaxer_Data = CasualMinMaxer_Data or {}
 local D = CasualMinMaxer_Data
 D.items, D.src, D.quests, D.npcs, D.bosses, D.dungeons, D.objects, D.zones, D.specials = {}, {}, {}, {}, {}, {}, {}, {}, {}
-D.rsuffix, D.rprop, D.randprop, D.sbonus = {}, {}, {}, {}
+D.rsuffix, D.rprop, D.randprop, D.sbonus, D.rpool = {}, {}, {}, {}, {}
 D.meta = { version = "dev", built = "2026-09-19", dbVersion = "tbc-db", items = 12232, quests = 2903, phases = 5 }

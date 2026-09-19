@@ -276,6 +276,38 @@ function O.Evaluate(item, player, opts)
   return best
 end
 
+-- Availability factor of one random suffix: a roll at TIER.auctionRefChance % costs the base time,
+-- rarer rolls scale up to TIER.auctionMaxFactor; an unknown chance counts as 3×.
+function O.SuffixFactor(chance)
+  local T = C.TIER
+  if not chance or chance <= 0 then return 3 end
+  local f = (T.auctionRefChance or 3) / chance
+  if f < 1 then f = 1 end
+  if f > (T.auctionMaxFactor or 20) then f = T.auctionMaxFactor or 20 end
+  return f
+end
+
+-- Obtain result for a suffix virtual item: the base item's result with chance-scaled minutes.
+-- Auction-house rows name the suffix and its roll chance; drop rows keep their source text.
+function O.ForSuffix(obtain, item)
+  if not obtain or not item.suffix then return obtain end
+  local out = {}
+  for k, v in pairs(obtain) do out[k] = v end
+  local chance = item.suffixChance
+  out.minutes = obtain.minutes * O.SuffixFactor(chance)
+  out.suffixChance = chance
+  if obtain.src and obtain.src.t == "S" then
+    local name = Data.SuffixName(item.suffix) or ""
+    if chance then
+      local c = string.format("%.1f", chance):gsub("%.0$", "")
+      out.text = string.format("Auction house, %s (%s%% of drops)", name, c)
+    else
+      out.text = string.format("Auction house, %s", name)
+    end
+  end
+  return out
+end
+
 -- Guaranteed sources (tier 1/2) usable by the character at level L, ignoring the current level.
 local function guaranteedAt(item, player, L)
   for _, src in ipairs(item.src) do

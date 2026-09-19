@@ -55,7 +55,17 @@ C.TIER = {
   minutesPerQuest = 10, groupOverhead = 15, travel = 15, trashRun = 45, vendorWalk = 5,
   craftOwn = 20, craftOther = 30, lotteryBelowPct = 15, namedMinutes = 30, rareMinutes = 30,
   badgeGrind = 180, honorGrind = 240, arenaGrind = 900, repPerRank = 180, auction = 10,
+  -- auction-house availability of a random suffix: minutes = auction × clamp(auctionRefChance / chance, 1, auctionMaxFactor)
+  auctionRefChance = 3, auctionMaxFactor = 20,
 }
+
+-- Random-suffix listing limits (account-wide options DB.random overlay these)
+C.RANDOM = { minChancePct = 0.5, maxAuctionRows = 8 }
+
+-- Pristine copies so saved tuning can be re-applied from scratch (Core.ApplySettings)
+C.TIER_DEFAULTS, C.RANDOM_DEFAULTS = {}, {}
+for k, v in pairs(C.TIER) do C.TIER_DEFAULTS[k] = v end
+for k, v in pairs(C.RANDOM) do C.RANDOM_DEFAULTS[k] = v end
 
 -- Source-type filter key for a decoded source: vendors are split by currency (§6.4).
 -- V gold, E badges, H honor / PvP tokens, A arena, F reputation; every other code is its own key.

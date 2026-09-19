@@ -127,7 +127,7 @@ title fields never contain `;` or `|` (the pipeline strips them); they may conta
 | 11 | sockets | letters in socket order: R red, Y yellow, B blue, M meta; empty if none |
 | 12 | sbonus | socket bonus enchantment id, 0 if none |
 | 13 | phase | 1–5 content phase in which the item becomes obtainable (see §7) |
-| 14 | rand | random-enchant pool: comma list of ids, NEGATIVE = ItemRandomSuffix id (TBC scaling suffix, §4.11), POSITIVE = ItemRandomProperties id (fixed vanilla property). Empty for normal items; 13-field records parse with rand empty. `stats` holds only the base item (armor, DPS) |
+| 14 | rand | random-enchant pool reference `P<key>` into `D.rpool` (§4.11), or an inline `<signed id>:<chance>,...` list; NEGATIVE id = ItemRandomSuffix (TBC scaling suffix), POSITIVE id = ItemRandomProperties (fixed vanilla property); chance = roll chance in percent of drops of the base item (item_enchantment_template), one decimal, entries sorted by chance descending; a bare id (no chance) is accepted. Empty for normal items; 13-field records parse with rand empty. `stats` holds only the base item (armor, DPS) |
 
 Items are split by slot group into `Items_<Group>.lua`, groups: Head, Neck, Shoulder, Back, Chest,
 Wrist, Hands, Waist, Legs, Feet, Finger, Trinket, Weapon (inv 13/17/21/22), OffhandArmor (14/23),
@@ -199,6 +199,8 @@ floor(allocPct × points / 10000) with points = `D.randprop[ilvl]` = `"e0,e1,e2,
 (RandPropPoints: epic / superior / good columns, group by inventory type: 0 head, chest, robe, legs,
 2H; 1 shoulder, waist, feet, hands, trinket; 2 neck, wrist, finger, back, shield, held; 3 1H, MH, OH;
 4 ranged). `D.rprop[id] = "name;KEY:value,..."` for ItemRandomProperties (fixed values).
+`D.rpool[key] = "<signed id>:<chance>,..."` = one shared roll pool per item_enchantment_template entry (key
+−entry for suffix pools, +entry for property pools); items reference it with `P<key>` in field 14.
 `D.sbonus[enchantId] = "KEY:value,..."` = real socket bonus stats for every socket bonus id used by a
 shipped item; `Weights.SocketBonus` prefers it over the hand table. Values come from the client
 DB2 tables in pipeline/dbc/ (see its README).
@@ -307,6 +309,14 @@ Random-enchant base items (`rand` non-empty) are expanded into one virtual candi
 `link = "item:<id>:0:0:0:0:0:<suffix>"`), scored like any item; only upgrades survive and at most the
 3 best suffixes per base item are listed. An equipped item whose link carries a suffix id is scored as
 base + suffix from the pack when both are known, else from the client's stats.
+Random-enchant items: every suffix with roll chance ≥ `Constants.RANDOM.minChancePct` (default 0.5; unknown chance
+passes) is evaluated as a virtual item; the base item contributes ONE row, the best suffix for the active sort,
+with `suffix`, `suffixChance`, `link` and `alternatives` (up to 4 other upgrade suffixes `{id, name, gain, chance, stats}`
+by gain). Suffix rows take the base item's obtain result with minutes × `Obtain.SuffixFactor(chance)` =
+clamp(TIER.auctionRefChance / chance, 1, TIER.auctionMaxFactor) (3 when the chance is unknown); auction-house
+rows read "Auction house, of the Bear (3% of drops)", drop rows keep their text. After sorting and dedupe at
+most `Constants.RANDOM.maxAuctionRows` (default 8) rows whose best source is `S` survive per query. Both limits
+are account-wide options (`DB.random`), applied by `Core.ApplySettings` like `DB.constants` onto `TIER`.
 Result rows with the same name, stat signature and source text (faction twins) are collapsed to the first.
 Filter (not gate): source type, tier, dungeon, zone, group, armor type, special, sidegrades. Source-type
 filter keys are the source codes, with vendor split by mode: `V` gold, `E` badges, `H` honor/tokens, `A` arena,

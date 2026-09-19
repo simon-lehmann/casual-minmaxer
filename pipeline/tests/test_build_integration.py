@@ -1,9 +1,9 @@
+import re
 """Integration tests against the real tbcdb.sqlite snapshot and the generated data pack.
 
 Skipped when pipeline/work/tbcdb.sqlite is missing. The pack is built once into a temp dir.
 """
 import os
-import re
 import sys
 
 import pytest
@@ -31,7 +31,7 @@ def pack(tmp_path_factory):
 def parse_file(path, key):
     out = {}
     for line in open(path, encoding="utf-8"):
-        m = re.match(r'D\.%s\[(\d+)\]="(.*)"$' % key, line.rstrip("\n"))
+        m = re.match(r'D\.%s\[(-?\d+)\]="(.*)"$' % key, line.rstrip("\n"))
         if m:
             out[int(m.group(1))] = m.group(2).replace('\\"', '"').replace("\\\\", "\\")
     return out
@@ -54,6 +54,7 @@ def tables(pack):
         "rsuffix": parse_file(os.path.join(out, "Random.lua"), "rsuffix"),
         "rprop": parse_file(os.path.join(out, "Random.lua"), "rprop"),
         "randprop": parse_file(os.path.join(out, "Random.lua"), "randprop"),
+        "rpool": parse_file(os.path.join(out, "Random.lua"), "rpool"),
         "sbonus": parse_file(os.path.join(out, "SocketBonus.lua"), "sbonus"),
     }
 
@@ -61,8 +62,14 @@ def tables(pack):
 def test_random_suffix_greens(tables):
     # Talonguard Armor (24968): BoE mail chest ilvl 99 with the Outland suffix pool -> S + W sources
     rec = tables["items"][24968].split(";")
-    rand = [int(x) for x in rec[13].split(",")]
+    assert rec[13] == "P-65"
+    entries = tables["rpool"][-65].split(",")
+    assert all(re.match(r"^-?\d+:\d+\.\d$", e) for e in entries), entries
+    rand = [int(e.split(":")[0]) for e in entries]
+    chances = [float(e.split(":")[1]) for e in entries]
     assert -7 in rand and -5 in rand and all(r < 0 for r in rand)
+    assert chances == sorted(chances, reverse=True)
+    assert 95 <= sum(chances) <= 105, sum(chances)
     assert "S" in tables["src"][24968].split("|")
     assert tables["rsuffix"][7] == "of the Bear;STR:6666,STA:10000"
     assert tables["rsuffix"][5] == "of the Monkey;AGI:6666,STA:10000"
@@ -119,10 +126,15 @@ def test_item_record_shape(tables):
     for iid, rec in tables["items"].items():
         f = rec.split(";")
         assert len(f) == 14, (iid, rec)
-        for r in (f[13].split(",") if f[13] else []):
-            r = int(r)
-            assert (r < 0 and -r in tables["rsuffix"]) or (r > 0 and r in tables["rprop"]), (iid, r)
         if f[13]:
+            m = re.match(r"^P(-?\d+)$", f[13])
+            assert m, (iid, f[13])
+            pool = tables["rpool"][int(m.group(1))]
+            for e in pool.split(","):
+                assert re.match(r"^-?\d+:\d+\.\d$", e), (iid, e)
+                r = int(e.split(":")[0])
+                assert (r < 0 and -r in tables["rsuffix"]) or (r > 0 and r in tables["rprop"]), (iid, r)
+                assert (int(m.group(1)) < 0) == (r < 0), (iid, "pool sign does not match its ids")
             assert int(f[5]) in tables["randprop"], (iid, "no RandPropPoints row for ilvl")
         assert f[0] and not re.search(r"[;|]", f[0])
         assert int(f[1]) in build.INV_GROUP and int(f[2]) in (2, 4) and int(f[4]) in (2, 3, 4)

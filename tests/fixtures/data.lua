@@ -79,7 +79,10 @@ return function(D)
     [30045] = { "Twin Helm;1;4;4;3;100;60;0;0;STA:25,STR:25;;0;1", "V0:H" },
     [30042] = { "Raid Helm Sourceless;1;4;4;4;141;70;0;0;STA:70,STR:70;;0;1", "" },
     -- random-enchant BoE mail chest (auction house): suffix pool Bear (-7), Monkey (-5), fixed "of the Falcon" (100)
-    [30050] = { "Fixture Mail Chest;5;4;3;2;99;63;0;2;ARMOR:900;;0;1;-7,-5,100", "S|W0.6" },
+    [30050] = { "Fixture Mail Chest;5;4;3;2;99;63;0;2;ARMOR:900;;0;1;-7:3.0,-5:2.5,100:0.3", "S|W0.6" },
+    [30053] = { "Fixture Mail Chest II;5;4;3;2;99;63;0;2;ARMOR:890;;0;1;-7:1.0,-5:6.0", "S|W0.4" },
+    [30054] = { "Fixture Bare Pool Chest;5;4;3;2;99;63;0;2;ARMOR:880;;0;1;-7,-5", "S|W0.4" },
+    [30055] = { "Fixture Pooled Chest;5;4;3;2;99;63;0;2;ARMOR:870;;0;1;P-65", "S|W0.4" },
     [30021] = { "World Helm;1;4;4;3;100;58;0;2;STA:23,STR:23;;0;1", "W0.5" },
     [30022] = { "Socket Helm;1;4;4;3;110;62;0;0;STA:20,STR:20;RY;2859;1", "B17941:25" },
     [30023] = { "Special Helm;1;4;4;3;110;62;0;16;STA:20,STR:20;;0;1", "B17941:25" },
@@ -128,6 +131,7 @@ return function(D)
   D.rsuffix[5] = "of the Monkey;AGI:6666,STA:10000"
   D.rprop[100] = "of the Falcon;AGI:5,INT:5"
   D.randprop[99] = "68,51,38,29,22;56,42,32,24,18;46,34,26,19,14"
+  D.rpool[-65] = "-5:6.0,-7:1.0"
   D.sbonus[2860] = "STA:4"
 
   for id, rec in pairs(items) do

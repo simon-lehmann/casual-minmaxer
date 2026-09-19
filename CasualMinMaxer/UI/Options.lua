@@ -92,6 +92,19 @@ function Options.SetConstant(key, value)
   if CMM.Fire then CMM.Fire("SETTINGS_CHANGED") end
 end
 
+function Options.SetRandomLimit(key, value)
+  if CMM.Core and CMM.Core.SetRandomLimit then
+    CMM.Core.SetRandomLimit(key, value)
+    return
+  end
+  local db = UI.DB()
+  db.random = db.random or {}
+  db.random[key] = value
+  if CMM.Constants and CMM.Constants.RANDOM then CMM.Constants.RANDOM[key] = value end
+  call(CMM.Query, "Invalidate")
+  if CMM.Fire then CMM.Fire("SETTINGS_CHANGED") end
+end
+
 function Options.SetSpecOverride(key)
   if CMM.Core and CMM.Core.SetSpecOverride then
     CMM.Core.SetSpecOverride(key) -- refreshes the player snapshot, invalidates queries, fires PLAYER_CHANGED
@@ -227,10 +240,17 @@ local function buildPanel()
   panel.auction = makeSlider(panel, L["Auction house (min)"], 0, 120, 5,
     function(v) Options.SetConstant("auction", math.floor(v + 0.5)) end)
   panel.auction:SetPoint("LEFT", panel.repPerRank, "RIGHT", 70, 0)
+  -- Random-suffix listing limits (account-wide)
+  panel.maxAuctionRows = makeSlider(panel, L["Auction rows per slot"], 0, 20, 1,
+    function(v) Options.SetRandomLimit("maxAuctionRows", math.floor(v + 0.5)) end)
+  panel.maxAuctionRows:SetPoint("TOPLEFT", panel.arenaGrind, "BOTTOMLEFT", 0, -34)
+  panel.minChancePct = makeSlider(panel, L["Minimum suffix roll chance %"], 0, 5, 0.5,
+    function(v) Options.SetRandomLimit("minChancePct", math.floor(v * 2 + 0.5) / 2) end)
+  panel.minChancePct:SetPoint("LEFT", panel.maxAuctionRows, "RIGHT", 70, 0)
 
   -- Pawn import / exports
   panel.pawnLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  panel.pawnLabel:SetPoint("TOPLEFT", panel.arenaGrind, "BOTTOMLEFT", -4, -30)
+  panel.pawnLabel:SetPoint("TOPLEFT", panel.maxAuctionRows, "BOTTOMLEFT", -4, -30)
   panel.pawnLabel:SetText(L["Pawn string"])
   panel.pawn = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
   panel.pawn:SetSize(300, 22)
@@ -283,6 +303,11 @@ function Options.Refresh()
   panel.honorGrind:Set(db.constants.honorGrind or tier.honorGrind or 240)
   panel.arenaGrind:Set(db.constants.arenaGrind or tier.arenaGrind or 900)
   panel.repPerRank:Set(db.constants.repPerRank or tier.repPerRank or 180)
+  panel.auction:Set(db.constants.auction or tier.auction or 10)
+  local rnd = db.random or {}
+  local rndDefaults = (CMM.Constants and CMM.Constants.RANDOM) or {}
+  panel.maxAuctionRows:Set(rnd.maxAuctionRows or rndDefaults.maxAuctionRows or 8)
+  panel.minChancePct:Set(rnd.minChancePct or rndDefaults.minChancePct or 0.5)
 
   local defaults = Options.DefaultWeights()
   local active = UI.Weights()

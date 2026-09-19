@@ -213,6 +213,46 @@ describe("integration: real logic + real UI (fixture data)", function()
     wow.questChoices = {}
   end)
 
+  it("random-suffix limit sliders write DB.random and change the auction rows", function()
+    assert.equals(1, #wow.optionsPanels)
+    local panel = wow.optionsPanels[1]
+    CMM.UI.Options.Refresh()
+    assert.equals(8, panel.maxAuctionRows:GetValue())
+    assert.is_near(0.5, panel.minChancePct:GetValue(), 1e-9)
+    local cdb = _G.CasualMinMaxerCharDB
+    cdb.filters.sources.S, cdb.filters.sources.W = true, true
+    cdb.filters.tiers = { true, true, true, true, true }
+    CMM.Query.Invalidate()
+    local function auctionRows()
+      local n, ids = 0, {}
+      for _, r in ipairs(CMM.Query.Run("CHEST", CMM.Player.Get(), CMM.UI.QueryOpts()).rows) do
+        if r.obtain.src.t == "S" then n = n + 1; ids[r.id] = r end
+      end
+      return n, ids
+    end
+    local n, ids = auctionRows()
+    assert.equals(4, n)
+    assert.equals(-7, ids[30050].suffix)
+    panel.minChancePct:GetScript("OnValueChanged")(panel.minChancePct, 5)
+    assert.equals(5, _G.CasualMinMaxerDB.random.minChancePct)
+    assert.equals(5, CMM.Constants.RANDOM.minChancePct)
+    n, ids = auctionRows()
+    assert.equals(3, n)
+    assert.is_nil(ids[30050]) -- every suffix of 30050 rolls below 5 %
+    assert.equals(-5, ids[30053].suffix) -- only the 6 % Monkey survives
+    assert.is_not_nil(ids[30054]) -- unknown chance passes
+    panel.maxAuctionRows:GetScript("OnValueChanged")(panel.maxAuctionRows, 0)
+    assert.equals(0, _G.CasualMinMaxerDB.random.maxAuctionRows)
+    n = auctionRows()
+    assert.equals(0, n)
+    CMM.UI.Show("CHEST")
+    for _, e in ipairs(CMM.UI.state.entries) do
+      if e.row then assert.is_true(e.row.obtain.src.t ~= "S") end
+    end
+    CMM.Core.ResetSavedVariables()
+    assert.equals(8, CMM.Constants.RANDOM.maxAuctionRows)
+  end)
+
   it("options sliders reflect the real active weights and changes flow back into queries", function()
     assert.equals(1, #wow.optionsPanels)
     local panel = wow.optionsPanels[1]

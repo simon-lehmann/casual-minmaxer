@@ -269,15 +269,22 @@ describe("real data pack", function()
           for _, src in ipairs(row.item.src) do if src.t == "S" then hasS = true end end
           if hasS then
             ahRows = ahRows + 1
-            assert.equals("Auction house", row.obtain.text, row.item.name)
+            assert.is_truthy(row.obtain.text:find("^Auction house, "), row.obtain.text)
+            assert.is_true(row.suffixChance == nil or row.suffixChance >= CMM.Constants.RANDOM.minChancePct)
           end
           assert.is_truthy(row.item.name:find(" of ", 1, true), row.item.name)
           assert.is_truthy(next(row.item.suffixStats), "empty suffix stats: " .. row.item.name)
           assert.is_truthy(row.link and row.link:match("^item:%d+:0:0:0:0:0:%-?%d+$"))
           perBase[row.id] = (perBase[row.id] or 0) + 1
-          assert.is_true(perBase[row.id] <= CMM.Query.MAX_SUFFIX_ROWS, "too many suffix rows for " .. row.item.name)
+          assert.equals(1, perBase[row.id], "more than one row for " .. row.item.name)
+          assert.is_table(row.alternatives)
+          assert.is_true(#row.alternatives <= CMM.Query.MAX_ALTERNATIVES)
         end
       end
+      local ahInSlot = 0
+      for _, row in ipairs(results[slot].rows) do if row.obtain.src.t == "S" then ahInSlot = ahInSlot + 1 end end
+      assert.is_true(ahInSlot <= CMM.Constants.RANDOM.maxAuctionRows, slot .. " has " .. ahInSlot .. " auction rows")
+      assert.is_true(#results[slot].rows < 600, slot .. " has " .. #results[slot].rows .. " rows for an empty slot")
     end
     assert.is_true(ahRows >= 5, "expected auction-house rows, got " .. ahRows)
     -- an equipped green "of the Bear" is scored from base + suffix

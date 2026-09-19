@@ -157,6 +157,8 @@ local function cacheKey(slotKey, player, o)
     serialize(o.weights), serialize(o.filters), o.sort, tostring(o.sidegrades), o.lookahead, o.phase,
     tostring(o.dungeon), tostring(o.zone), tostring(o.showSpecial), serialize(o.hidden),
     serialize(player.equippedLinks or player.equipped), serialize(player.professions), tostring(o.longevity),
+    tostring(C.RANDOM.minChancePct), tostring(C.RANDOM.maxAuctionRows),
+    tostring(C.TIER.auction), tostring(C.TIER.auctionRefChance), tostring(C.TIER.auctionMaxFactor),
   }, "|")
 end
 
@@ -169,7 +171,24 @@ local function statsSignature(item)
   return table.concat(keys, ",")
 end
 
-Q.MAX_SUFFIX_ROWS = 3
+Q.MAX_ALTERNATIVES = 4
+
+-- Drop auction-house rows beyond C.RANDOM.maxAuctionRows (rows are already sorted).
+function Q.CapAuctionRows(rows)
+  local cap = C.RANDOM.maxAuctionRows
+  if not cap then return rows end
+  local out, n = {}, 0
+  for _, row in ipairs(rows) do
+    local isAuction = row.obtain and row.obtain.src and row.obtain.src.t == "S"
+    if isAuction then
+      n = n + 1
+      if n <= cap then out[#out + 1] = row end
+    else
+      out[#out + 1] = row
+    end
+  end
+  return out
+end
 
 function Q.Dedupe(rows)
   local seen, out = {}, {}
@@ -217,7 +236,7 @@ function Q.Run(slotKey, player, opts)
       id = id, item = item, score = score, gain = gain, gainPct = gainPct, tier = obtain.tier,
       minutes = obtain.minutes, eff = eff, obtain = obtain, lastsUntil = lasts,
       value = eff * (lasts - player.level + 1), special = special, set = Data.HasFlag(item, C.FLAG_SET),
-      suffix = item.suffix, link = item.link,
+      suffix = item.suffix, suffixChance = item.suffixChance, link = item.link,
     }
   end
 
@@ -232,15 +251,33 @@ function Q.Run(slotKey, player, opts)
         local obtain = Obtain.Evaluate(item, player, evalOpts)
         if obtain and (not o.filters.tiers or o.filters.tiers[obtain.tier]) then
           if item.rand then
-            -- random-enchant base: one virtual candidate per suffix, keep the best MAX_SUFFIX_ROWS upgrades
+            -- random-enchant base: evaluate every suffix above the minimum roll chance, emit ONE row
+            -- (the best for the active sort) and carry the other upgrade suffixes as alternatives
             local variants = {}
+            local minChance = C.RANDOM.minChancePct or 0
+            local chances = item.randChance or {}
             for _, sid in ipairs(item.rand) do
-              local virtual = Data.WithSuffix(item, sid)
-              local row = virtual and evaluate(virtual, id, special, obtain)
-              if row then variants[#variants + 1] = row end
+              local chance = chances[sid]
+              if not chance or chance >= minChance then
+                local virtual = Data.WithSuffix(item, sid)
+                local row = virtual and evaluate(virtual, id, special, Obtain.ForSuffix(obtain, virtual))
+                if row then variants[#variants + 1] = row end
+              end
             end
-            table.sort(variants, function(a, b) return a.score > b.score end)
-            for i = 1, math.min(Q.MAX_SUFFIX_ROWS, #variants) do rows[#rows + 1] = variants[i] end
+            if #variants > 0 then
+              table.sort(variants, SORTS[o.sort] or SORTS.eff)
+              local best = variants[1]
+              local alts = {}
+              for i = 2, #variants do alts[#alts + 1] = variants[i] end
+              table.sort(alts, function(a, b) return a.gain > b.gain end)
+              best.alternatives = {}
+              for i = 1, math.min(Q.MAX_ALTERNATIVES, #alts) do
+                local v = alts[i]
+                best.alternatives[i] = { id = v.suffix, name = Data.SuffixName(v.suffix) or "", gain = v.gain,
+                  chance = v.suffixChance, stats = v.item.suffixStats }
+              end
+              rows[#rows + 1] = best
+            end
           else
             local row = evaluate(item, id, special, obtain)
             if row then rows[#rows + 1] = row end
@@ -250,7 +287,7 @@ function Q.Run(slotKey, player, opts)
     end
   end
   table.sort(rows, SORTS[o.sort] or SORTS.eff)
-  rows = Q.Dedupe(rows)
+  rows = Q.CapAuctionRows(Q.Dedupe(rows))
   local result = { rows = rows, equippedScore = equippedScore, equippedId = equippedId, slotKey = slotKey }
   cache[key] = result
   return result

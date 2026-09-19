@@ -30,6 +30,7 @@ Core.DB_DEFAULTS = {
   ui = { x = nil, y = nil, w = 760, h = 520, scale = 1 },
   minimap = { hide = false, minimapPos = 220 },
   constants = {},
+  random = { minChancePct = 0.5, maxAuctionRows = 8 },
   phase = 5,
   showSidegradesDefault = false,
   tooltip = true,
@@ -94,13 +95,40 @@ function Core.InitSavedVariables()
   fillDefaults(db, Core.DB_DEFAULTS)
   fillDefaults(cdb, Core.CHAR_DEFAULTS)
   CMM.db, CMM.chardb = db, cdb
+  Core.ApplySettings()
   return db, cdb
+end
+
+-- Overlay the saved account-wide tuning (tier minutes, random-suffix limits) onto the constants.
+function Core.ApplySettings()
+  local db = _G.CasualMinMaxerDB
+  if not db then return end
+  local Cn = CMM.Constants
+  if Cn.TIER_DEFAULTS then for k, v in pairs(Cn.TIER_DEFAULTS) do Cn.TIER[k] = v end end
+  if Cn.RANDOM_DEFAULTS then for k, v in pairs(Cn.RANDOM_DEFAULTS) do Cn.RANDOM[k] = v end end
+  for k, v in pairs(db.constants or {}) do
+    if type(v) == "number" then CMM.Constants.TIER[k] = v end
+  end
+  for k, v in pairs(db.random or {}) do
+    if type(v) == "number" then CMM.Constants.RANDOM[k] = v end
+  end
+end
+
+-- Set one random-suffix limit (minChancePct, maxAuctionRows) account-wide.
+function Core.SetRandomLimit(key, value)
+  local db = _G.CasualMinMaxerDB
+  db.random = db.random or {}
+  db.random[key] = value
+  CMM.Constants.RANDOM[key] = value
+  CMM.Query.Invalidate()
+  CMM.Fire("SETTINGS_CHANGED")
 end
 
 function Core.ResetSavedVariables()
   _G.CasualMinMaxerDB = copy(Core.DB_DEFAULTS)
   _G.CasualMinMaxerCharDB = copy(Core.CHAR_DEFAULTS)
   CMM.db, CMM.chardb = _G.CasualMinMaxerDB, _G.CasualMinMaxerCharDB
+  Core.ApplySettings()
   CMM.Query.Invalidate()
   CMM.Fire("SETTINGS_CHANGED")
 end
