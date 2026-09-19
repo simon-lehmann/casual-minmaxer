@@ -5,7 +5,7 @@ CMM.Core = Core
 local C = CMM.Constants
 
 Core.DB_VERSION = 1
-Core.CHAR_VERSION = 1
+Core.CHAR_VERSION = 2
 
 local function copy(t)
   local out = {}
@@ -42,7 +42,7 @@ Core.CHAR_DEFAULTS = {
   weights = {},
   lookahead = 2,
   filters = {
-    sources = { Q = true, K = true, V = true, B = true, G = true, R = true, N = true, T = true, W = false },
+    sources = CMM.Constants.DefaultSourceFilters(),
     tiers = { [1] = true, [2] = true, [3] = true, [4] = false, [5] = false },
     dungeon = nil, zone = nil, groupOnly = false, armor = "all", special = true, sidegrades = false, sort = "eff",
   },
@@ -54,7 +54,20 @@ Core.CHAR_DEFAULTS = {
 Core.DB_MIGRATIONS = {
   -- [1] = function(db) ... end  (migrate from version 1 to 2)
 }
-Core.CHAR_MIGRATIONS = {}
+Core.CHAR_MIGRATIONS = {
+  -- 1 -> 2: vendor sources split by currency (E badges, H honor, A arena, F reputation)
+  [1] = function(db)
+    local f = db.filters and db.filters.sources
+    if type(f) == "table" then
+      local defaults = CMM.Constants.DefaultSourceFilters()
+      for k, v in pairs(defaults) do
+        if f[k] == nil then
+          if k == "E" or k == "H" or k == "F" then f[k] = (f.V ~= false) else f[k] = v end
+        end
+      end
+    end
+  end,
+}
 
 local function migrate(db, migrations, target)
   local v = tonumber(db.version) or 0

@@ -212,10 +212,22 @@ local function buildPanel()
   panel.travel = makeSlider(panel, L["Travel to other zone (min)"], 0, 45, 1,
     function(v) Options.SetConstant("travel", math.floor(v + 0.5)) end)
   panel.travel:SetPoint("TOPLEFT", panel.lookahead, "BOTTOMLEFT", 0, -34)
+  panel.badgeGrind = makeSlider(panel, L["Badge gear (min)"], 30, 600, 10,
+    function(v) Options.SetConstant("badgeGrind", math.floor(v + 0.5)) end)
+  panel.badgeGrind:SetPoint("LEFT", panel.travel, "RIGHT", 70, 0)
+  panel.honorGrind = makeSlider(panel, L["Honor gear (min)"], 30, 900, 10,
+    function(v) Options.SetConstant("honorGrind", math.floor(v + 0.5)) end)
+  panel.honorGrind:SetPoint("LEFT", panel.badgeGrind, "RIGHT", 70, 0)
+  panel.arenaGrind = makeSlider(panel, L["Arena gear (min)"], 60, 3000, 30,
+    function(v) Options.SetConstant("arenaGrind", math.floor(v + 0.5)) end)
+  panel.arenaGrind:SetPoint("TOPLEFT", panel.travel, "BOTTOMLEFT", 0, -34)
+  panel.repPerRank = makeSlider(panel, L["Reputation per rank (min)"], 30, 600, 10,
+    function(v) Options.SetConstant("repPerRank", math.floor(v + 0.5)) end)
+  panel.repPerRank:SetPoint("LEFT", panel.arenaGrind, "RIGHT", 70, 0)
 
   -- Pawn import / exports
   panel.pawnLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  panel.pawnLabel:SetPoint("TOPLEFT", panel.travel, "BOTTOMLEFT", -4, -30)
+  panel.pawnLabel:SetPoint("TOPLEFT", panel.arenaGrind, "BOTTOMLEFT", -4, -30)
   panel.pawnLabel:SetText(L["Pawn string"])
   panel.pawn = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
   panel.pawn:SetSize(300, 22)
@@ -264,6 +276,10 @@ function Options.Refresh()
   panel.minutesPerQuest:Set(db.constants.minutesPerQuest or tier.minutesPerQuest or 10)
   panel.groupOverhead:Set(db.constants.groupOverhead or tier.groupOverhead or 15)
   panel.travel:Set(db.constants.travel or tier.travel or 15)
+  panel.badgeGrind:Set(db.constants.badgeGrind or tier.badgeGrind or 180)
+  panel.honorGrind:Set(db.constants.honorGrind or tier.honorGrind or 240)
+  panel.arenaGrind:Set(db.constants.arenaGrind or tier.arenaGrind or 900)
+  panel.repPerRank:Set(db.constants.repPerRank or tier.repPerRank or 180)
 
   local defaults = Options.DefaultWeights()
   local active = UI.Weights()

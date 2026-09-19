@@ -92,13 +92,8 @@ function O.SourceUsable(src, player, opts)
     local obj = Data.Object(src.object)
     if obj and Data.Dungeon(obj.map) then return dungeonUsable(obj.map, player, opts) end
     return true
-  elseif t == "V" then
-    if src.mode == "F" and src.faction then
-      local standing = CMM.Compat.FactionStanding(src.faction)
-      if standing and standing < (src.rank or 0) then return false, "reputation" end
-    end
-    return true
-  elseif t == "K" or t == "W" then
+  elseif t == "V" or t == "K" or t == "W" then
+    -- reputation is not a gate (§6.4): rep vendors get a time penalty per missing rank instead
     return true
   end
   return false, "unknown source"
@@ -221,13 +216,26 @@ function O.EvaluateSource(src, player, opts) -- luacheck: ignore 212/opts
     return { tier = 4, minutes = T.namedMinutes / (pct / 100), text = string.format("World drop, %s", fmtPct(pct)),
       group = false, src = src }
   elseif t == "V" then
-    local text
-    if src.mode == "E" then text = "Vendor, badges or honor"
+    local price = (src.price or 0) > 0 and (", " .. fmtMoney(src.price)) or ""
+    if src.mode == "E" then
+      return { tier = 5, minutes = T.badgeGrind, text = "Badge vendor" .. price, group = false, src = src }
+    elseif src.mode == "H" then
+      return { tier = 5, minutes = T.honorGrind, text = "Honor / PvP vendor" .. price, group = false, src = src }
+    elseif src.mode == "A" then
+      return { tier = 5, minutes = T.arenaGrind, text = "Arena vendor" .. price, group = false, src = src }
     elseif src.mode == "F" then
-      local names = { [4] = "Friendly", [5] = "Honored", [6] = "Revered", [7] = "Exalted" }
-      text = string.format("Reputation vendor, %s, %s", names[src.rank] or ("rank " .. tostring(src.rank)), fmtMoney(src.price))
-    else text = "Vendor, " .. fmtMoney(src.price) end
-    return { tier = 5, minutes = T.vendorWalk, text = text, group = false, src = src }
+      local rank = src.rank or 4
+      local rankName = C.REP_RANK_NAMES[rank] or ("rank " .. tostring(rank))
+      -- client standingId 4 neutral .. 8 exalted; item rank 4 friendly .. 7 exalted -> need standing >= rank + 1
+      local standing = (src.faction and CMM.Compat.FactionStanding(src.faction)) or C.REP_STANDING_NEUTRAL
+      local missing = math.max(0, (rank + 1) - standing)
+      if missing == 0 then
+        return { tier = 5, minutes = T.vendorWalk, text = "Reputation vendor, " .. rankName .. price, group = false, src = src }
+      end
+      local text = string.format("Reputation vendor, %s (%d rank%s to go)%s", rankName, missing, missing == 1 and "" or "s", price)
+      return { tier = 5, minutes = T.repPerRank * missing, text = text, group = false, src = src, repMissing = missing }
+    end
+    return { tier = 5, minutes = T.vendorWalk, text = "Vendor" .. price, group = false, src = src }
   elseif t == "K" then
     local prof = C.SKILL_LINES[src.skillLine] or ("skill " .. tostring(src.skillLine))
     local own = player.professions[src.skillLine]
@@ -289,6 +297,7 @@ local function bestGuaranteed(slotKey, ctx, player, L)
     if it and it.req <= L and it.phase <= (ctx.phase or 5)
       and (it.classmask == 0 or band(it.classmask, player.classMask) ~= 0)
       and ((it.cls == 4 and C.CanUseArmor(player.class, it.sub, L)) or (it.cls == 2 and C.CanUseWeapon(player.class, it.sub)))
+      and (not CMM.Query.UsableBySlot or CMM.Query.UsableBySlot(it, slotKey, player, { level = L }))
       and guaranteedAt(it, player, L) then
       local s = CMM.Scoring.ScoreItem(it, lctx)
       if s > best then best = s end

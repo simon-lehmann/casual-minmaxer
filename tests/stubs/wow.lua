@@ -114,7 +114,9 @@ _G.GetItemInfoInstant = function(id)
   if not M.items[id] then return nil end
   return id, "Armor", "Cloth", "INVTYPE_HEAD", 134400, 4, 1
 end
+M.itemsByLink = {} -- [full link] = ITEM_MOD table (random-suffix variants differ from the bare id)
 _G.GetItemStats = function(link)
+  if M.itemsByLink[link] then return CopyTable(M.itemsByLink[link]) end
   local id = tonumber(tostring(link):match("item:(%d+)"))
   local it = M.items[id]
   return it and it.stats and CopyTable(it.stats) or nil
@@ -245,8 +247,24 @@ function Frame:SetColorTexture() end
 function Frame:SetShown(s) self.shown = s end
 function Frame:AddLine() end
 function Frame:SetOwner() end
-function Frame:SetHyperlink() end
-function Frame:NumLines() return 0 end
+-- Tooltip scanning: tests set M.tooltipLines[link or itemId] = { "line1", "line2", ... }
+M.tooltipLines = {}
+function Frame:SetHyperlink(link)
+  local id = tonumber(tostring(link):match("item:(%d+)"))
+  local lines = M.tooltipLines[link] or (id and M.tooltipLines[id]) or nil
+  self.tipLines = lines or {}
+  local name = self:GetName()
+  if name then
+    for i, text in ipairs(self.tipLines) do
+      local fs = _G[name .. "TextLeft" .. i] or self:CreateFontString()
+      fs.text = text
+      _G[name .. "TextLeft" .. i] = fs
+    end
+    local i = #self.tipLines + 1
+    while _G[name .. "TextLeft" .. i] do _G[name .. "TextLeft" .. i] = nil i = i + 1 end
+  end
+end
+function Frame:NumLines() return self.tipLines and #self.tipLines or 0 end
 function Frame:ClearLines() end
 function Frame:AddDoubleLine() end
 function Frame:GetItem() return nil end
@@ -351,6 +369,8 @@ end
 
 function M.Reset()
   M.items = {}
+  M.itemsByLink = {}
+  M.tooltipLines = {}
   M.player.equipped = {}
   M.player.completedQuests = {}
   M.player.factions = {}

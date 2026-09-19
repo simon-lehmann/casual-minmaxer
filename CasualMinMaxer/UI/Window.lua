@@ -32,10 +32,11 @@ UI.SLOT_EMPTY_ICON = {
   MAINHAND = "Interface\\PaperDoll\\UI-PaperDoll-Slot-MainHand", OFFHAND = "Interface\\PaperDoll\\UI-PaperDoll-Slot-SecondaryHand",
   RANGED = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Ranged",
 }
-UI.SOURCE_TYPES = { "Q", "B", "R", "N", "T", "G", "V", "K", "W" }
+UI.SOURCE_TYPES = { "Q", "B", "R", "N", "T", "G", "V", "E", "H", "A", "F", "K", "W" }
 UI.SOURCE_NAMES = {
   Q = "Quest", B = "Boss drop", R = "Rare spawn", N = "Named mob", T = "Dungeon trash", G = "Chest",
-  V = "Vendor", K = "Crafted", W = "World drop (BoE)",
+  V = "Vendor (gold)", E = "Badge vendor", H = "Honor / PvP", A = "Arena", F = "Reputation vendor",
+  K = "Crafted", W = "World drop (BoE)",
 }
 UI.SORTS = { { "eff", "Efficiency" }, { "gain", "Score gain" }, { "fast", "Fastest" }, { "value", "Value over time" } }
 
@@ -71,9 +72,12 @@ function UI.CharDB()
   if not c.filters then
     c.filters = { sources = {}, tiers = { [1] = true, [2] = true, [3] = true }, dungeon = nil, zone = nil,
       groupOnly = false, armor = "all", special = true, sidegrades = false, sort = "eff" }
-    for _, s in ipairs(UI.SOURCE_TYPES) do c.filters.sources[s] = (s ~= "W") end
+    for _, s in ipairs(UI.SOURCE_TYPES) do c.filters.sources[s] = (s ~= "W" and s ~= "A") end
   end
   c.filters.sources = c.filters.sources or {}
+  for _, s in ipairs(UI.SOURCE_TYPES) do
+    if c.filters.sources[s] == nil then c.filters.sources[s] = (s ~= "W" and s ~= "A") end
+  end
   c.filters.tiers = c.filters.tiers or { [1] = true, [2] = true, [3] = true }
   return c
 end

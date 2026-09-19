@@ -57,7 +57,7 @@ local function parseSource(tok)
   if code == "V" then
     local price, mode = body:match("^(%d+):(.*)$")
     local rec = { t = "V", price = tonumber(price) or 0, mode = "0" }
-    if mode == "E" then rec.mode = "E"
+    if mode == "E" or mode == "H" or mode == "A" then rec.mode = mode
     elseif mode and mode:sub(1, 1) == "F" then
       local faction, rank = mode:match("^F(%d+)%-(%d+)$")
       rec.mode = "F"; rec.faction = tonumber(faction); rec.rank = tonumber(rank)

@@ -26,6 +26,20 @@ describe("Validate", function()
     assert.is_nil(byKey.STR)
   end)
 
+  it("skips spell-derived keys unless the tooltip reports them, and accepts AP for pack RAP", function()
+    local D = _G.CasualMinMaxer_Data
+    D.items[30980] = "AP Helm;1;4;4;3;100;60;0;0;STA:10,AP:24,RAP:24,SP:5;;0;1"
+    D.src[30980] = "V1:0"
+    CMM.Data.Unload(); CMM.Data.Load()
+    H.wow.items[30980] = { name = "AP Helm", stats = { ITEM_MOD_STAMINA_SHORT = 10 } }
+    assert.same({}, V.CheckItem(30980)) -- no tooltip: AP/RAP/SP not comparable, nothing reported
+    H.wow.tooltipLines[30980] = { "AP Helm", "Equip: Increases attack power by 24.",
+      "Equip: Increases damage and healing done by magical spells and effects by up to 7." }
+    local diffs = V.CheckItem(30980)
+    assert.equals(1, #diffs)
+    assert.same({ key = "SP", pack = 5, client = 7, via = "tooltip" }, diffs[1])
+  end)
+
   it("ignores derived weapon stats", function()
     H.wow.items[30403] = { name = "Big 2H",
       stats = { ITEM_MOD_STRENGTH_SHORT = 30, ITEM_MOD_STAMINA_SHORT = 25, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 81 } }

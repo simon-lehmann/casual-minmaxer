@@ -10,7 +10,11 @@ describe("Query", function()
   end
   local function has(rows, id) return tContains(ids(rows), id) end
   local function allTiers() return { [1] = true, [2] = true, [3] = true, [4] = true, [5] = true } end
-  local function allSources() return { Q = true, K = true, V = true, B = true, G = true, R = true, N = true, T = true, W = true } end
+  local function allSources()
+    local out = {}
+    for _, k in ipairs(CMM.Constants.SOURCE_FILTER_KEYS) do out[k] = true end
+    return out
+  end
   local function filters(over)
     local f = { sources = allSources(), tiers = allTiers(), armor = "all", special = true, sidegrades = false, sort = "eff" }
     for k, v in pairs(over or {}) do f[k] = v end
@@ -211,5 +215,63 @@ describe("Query", function()
     assert.is_near(14.5, s.HEAD.equippedScore, 1e-9)
     assert.is_true(s.HEAD.count > 0)
     assert.is_true(s.HEAD.bestGain > 0)
+  end)
+
+  it("splits vendor sources by currency in the source filter", function()
+    H.wow.player.level = 70
+    CMM.Player.Refresh()
+    local p70 = CMM.Player.Get()
+    local all = Q.Run("HEAD", p70, { filters = filters() })
+    assert.is_true(has(all.rows, 30020)) -- E
+    assert.is_true(has(all.rows, 30040)) -- H
+    assert.is_true(has(all.rows, 30041)) -- A
+    assert.is_true(has(all.rows, 30018)) -- F
+    local goldOnly = Q.Run("HEAD", p70, { filters = filters({ sources = { V = true } }) })
+    assert.is_true(has(goldOnly.rows, 30017))
+    assert.is_false(has(goldOnly.rows, 30020))
+    assert.is_false(has(goldOnly.rows, 30040))
+    assert.is_false(has(goldOnly.rows, 30041))
+    assert.is_false(has(goldOnly.rows, 30018))
+    local honor = Q.Run("HEAD", p70, { filters = filters({ sources = { H = true } }) })
+    assert.same({ 30040 }, ids(honor.rows))
+    local defaults = Q.Run("HEAD", p70, { filters = CMM.Core.CHAR_DEFAULTS.filters, phase = 5 })
+    assert.is_false(has(defaults.rows, 30041)) -- arena off by default
+    assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.E)
+    assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.H)
+    assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.F)
+    assert.is_false(CMM.Core.CHAR_DEFAULTS.filters.sources.W)
+  end)
+
+  it("never lists an item without sources (raid loot shipped for equipped scoring)", function()
+    H.wow.player.level = 70
+    CMM.Player.Refresh()
+    local res = Q.Run("HEAD", CMM.Player.Get(), { filters = filters(), lookahead = 5 })
+    assert.is_false(has(res.rows, 30042))
+    local it = CMM.Data.Item(30042)
+    assert.is_not_nil(it)
+    assert.same({}, it.src)
+  end)
+
+  it("dungeon mode includes dungeon quests whose zone is the hub (qz)", function()
+    -- Lost in Action (9738) is a dungeon quest in Coilfang Reservoir (3905), Slave Pens entrance zone is 3521
+    local d = Q.Run("BACK", player, { filters = filters(), dungeon = 547 })
+    assert.is_true(has(d.rows, 30701))
+    assert.equals("Q", d.rows[1].obtain.src.t)
+    local other = Q.Run("BACK", player, { filters = filters(), dungeon = 543 })
+    assert.is_false(has(other.rows, 30701))
+  end)
+
+  it("unlocks plate at 40 with lookahead", function()
+    H.wow.player.level = 38
+    CMM.Player.Refresh()
+    local p38 = CMM.Player.Get()
+    local plate = CMM.Data.Item(30017) -- plate, req 58 (level gate) -> use UsableBySlot directly
+    assert.is_false(Q.UsableBySlot(plate, "HEAD", p38, { lookahead = 0 }))
+    assert.is_true(Q.UsableBySlot(plate, "HEAD", p38, { lookahead = 2 }))
+    assert.is_true(Q.UsableBySlot(plate, "HEAD", p38, { level = 40 }))
+    assert.is_true(Q.UsableBySlot(CMM.Data.Item(30404), "OFFHAND", p38, {})) -- warriors dual wield from 20
+    H.wow.player.level = 15
+    CMM.Player.Refresh()
+    assert.is_false(Q.UsableBySlot(CMM.Data.Item(30404), "OFFHAND", CMM.Player.Get(), {}))
   end)
 end)

@@ -77,9 +77,29 @@ describe("real data pack", function()
       faction = "Alliance", race = "Human", raceToken = "Human",
       talents = { { "Arms", 40 }, { "Fury", 13 }, { "Protection", 0 } }, zone = "Hellfire Peninsula" })
     local results = runAll(CMM, defaultOpts())
+    local needGuaranteed = { HEAD = true, CHEST = true, LEGS = true, MAINHAND = true }
     for _, slot in ipairs(SLOTS) do
       local rows = results[slot].rows
       assert.is_true(#rows >= 10, slot .. " has only " .. #rows .. " upgrades for an empty slot")
+      local sawGuaranteed = false
+      -- currency vendors (badges / honor / arena) cost hours: never in the top 5.
+      -- Gold vendors may lead an empty slot (a 30 g weapon is a legit quick upgrade), so guaranteed
+      -- quest / own-profession items are only required within the top 10.
+      for i = 1, math.min(10, #rows) do
+        local src = rows[i].obtain.src
+        local mode = src.t == "V" and src.mode or nil
+        if i <= 5 then
+          assert.is_true(mode ~= "E" and mode ~= "H" and mode ~= "A",
+            slot .. " top 5 contains a currency vendor item: " .. rows[i].item.name)
+        end
+        if rows[i].tier <= 2 then sawGuaranteed = true end
+      end
+      if needGuaranteed[slot] then
+        assert.is_true(sawGuaranteed, slot .. " top 10 has no guaranteed (tier 1/2) item")
+      end
+      for _, row in ipairs(rows) do
+        assert.is_true(#row.item.src > 0, "source-less item listed: " .. row.item.name)
+      end
       local prev = math.huge
       for i, row in ipairs(rows) do
         assert.is_true(row.gain > 0, slot .. " row " .. i .. " is not an upgrade")

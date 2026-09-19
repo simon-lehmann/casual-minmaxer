@@ -10,9 +10,9 @@ return function(D)
   D.zones[3905] = "Coilfang Reservoir"
 
   D.dungeons[547] = { name = "The Slave Pens", min = 55, max = 65, zone = 3521, heroic = true,
-    bosses = { 17941, 17991, 17942 }, t = { 8, 15, 25 } }
+    bosses = { 17941, 17991, 17942 }, t = { 8, 15, 25 }, qz = { 3905 } }
   D.dungeons[543] = { name = "Hellfire Ramparts", min = 55, max = 62, zone = 3483, heroic = true,
-    bosses = { 17306, 17308 }, t = { 10, 20 } }
+    bosses = { 17306, 17308 }, t = { 10, 20 }, qz = { 3535 } }
 
   D.bosses[17941] = "547;0;0"
   D.bosses[17991] = "547;1;0"
@@ -72,6 +72,9 @@ return function(D)
     [30018] = { "Rep Helm;1;4;4;3;110;60;0;0;STA:30,STR:32;;0;1", "V150000:F942-6" },
     [30019] = { "Crafted Helm;1;4;4;3;105;60;0;2;STA:26,STR:26;;0;1", "K164:340" },
     [30020] = { "Ext Helm;1;4;4;4;115;70;0;0;STA:45,STR:45;;0;1", "V0:E" },
+    [30040] = { "Honor Helm;1;4;4;4;115;70;0;0;STA:46,STR:46;;0;1", "V0:H" },
+    [30041] = { "Arena Helm;1;4;4;4;136;70;0;0;STA:60,STR:60;;0;1", "V0:A" },
+    [30042] = { "Raid Helm Sourceless;1;4;4;4;141;70;0;0;STA:70,STR:70;;0;1", "" },
     [30021] = { "World Helm;1;4;4;3;100;58;0;2;STA:23,STR:23;;0;1", "W0.5" },
     [30022] = { "Socket Helm;1;4;4;3;110;62;0;0;STA:20,STR:20;RY;2859;1", "B17941:25" },
     [30023] = { "Special Helm;1;4;4;3;110;62;0;16;STA:20,STR:20;;0;1", "B17941:25" },

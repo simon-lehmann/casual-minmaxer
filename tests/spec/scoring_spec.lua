@@ -151,6 +151,31 @@ describe("Scoring", function()
       assert.equals(0, S.EquippedScore("HEAD", ctx, CMM.Player.Get()))
     end)
 
+    it("scores equipped items through their full link (random suffix) and tooltip equip lines", function()
+      -- the stub returns suffix stats only for the exact link (GetItemStats sees the link, not the bare id)
+      H.wow.player.equipped = { [1] = 77777 }
+      local link = "|cffffffff|Hitem:77777::::::::62:::::|h[item77777]|h|r"
+      H.wow.items[77777] = { name = "Suffix Helm", stats = { ITEM_MOD_STAMINA_SHORT = 10 } }
+      H.wow.itemsByLink = H.wow.itemsByLink or {}
+      H.wow.itemsByLink[link] = { ITEM_MOD_STAMINA_SHORT = 10, ITEM_MOD_STRENGTH_SHORT = 12 }
+      H.wow.tooltipLines[link] = { "Suffix Helm", "Equip: Increases attack power by 24." }
+      CMM.Player.Refresh()
+      local p = CMM.Player.Get()
+      assert.equals(link, p.equippedLinks.HEAD)
+      local ctx = H.Ctx(CMM, "HEAD")
+      local score = S.EquippedScore("HEAD", ctx, p)
+      assert.is_near(10 * 0.45 + 12 + 24 * 0.5, score, 1e-6)
+    end)
+
+    it("prefers pack stats for equipped raid items shipped without sources", function()
+      H.wow.player.equipped = { [1] = 30042 }
+      H.wow.items[30042] = { name = "Raid Helm Sourceless", stats = { ITEM_MOD_STAMINA_SHORT = 1 } }
+      CMM.Player.Refresh()
+      local ctx = H.Ctx(CMM, "HEAD")
+      local score = S.EquippedScore("HEAD", ctx, CMM.Player.Get())
+      assert.is_near(70 * 0.45 + 70, score, 1e-6)
+    end)
+
     it("maps ITEM_MOD keys", function()
       local st = S.FromItemStats({ ITEM_MOD_SPELL_HEALING_DONE_SHORT = 100, ITEM_MOD_SPELL_DAMAGE_DONE_SHORT = 35,
         ITEM_MOD_MANA_REGENERATION_SHORT = 5, RESISTANCE0_NAME = 300, ITEM_MOD_HIT_RATING_SHORT = 0, UNKNOWN = 3 })

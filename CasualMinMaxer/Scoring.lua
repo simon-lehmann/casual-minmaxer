@@ -133,8 +133,9 @@ function S.ScoreItem(item, ctx)
   return total
 end
 
--- Score an equipped item id: data pack first, client GetItemStats as fallback.
-function S.ScoreEquippedId(id, slotKey, ctx)
+-- Score an equipped item id: data pack first, client GetItemStats (full link, so random-suffix stats
+-- count) plus tooltip-scanned equip effects as fallback.
+function S.ScoreEquippedId(id, slotKey, ctx, link)
   if not id then return 0, nil end
   local item = CMM.Data.Item(id)
   if item then
@@ -146,11 +147,9 @@ function S.ScoreEquippedId(id, slotKey, ctx)
     end
     return S.ScoreItem(item, c), item
   end
-  local link = GetInventoryItemLink and nil
-  local mods = CMM.Compat.GetItemStats("item:" .. id)
-  if not mods then return 0, nil end
-  local stats = S.FromItemStats(mods)
-  local pseudo = { id = id, stats = stats, sockets = "", sbonus = 0, flags = 0 }
+  local stats = CMM.Compat.ItemStatsFromClient(link or ("item:" .. id))
+  if not stats then return 0, nil end
+  local pseudo = { id = id, stats = stats, sockets = "", sbonus = 0, flags = 0, src = {} }
   local c = {}
   for k, v in pairs(ctx) do c[k] = v end
   c.slotKey = slotKey
@@ -165,10 +164,11 @@ end
 -- the 2H's score. Returns score, itemId (the item the candidate would replace).
 function S.EquippedScore(slotKey, ctx, player)
   local eq = player.equipped[slotKey]
+  local links = player.equippedLinks and player.equippedLinks[slotKey]
   if slotKey == "FINGER" or slotKey == "TRINKET" then
     local a, b = eq and eq[1], eq and eq[2]
-    local sa = S.ScoreEquippedId(a, slotKey, ctx)
-    local sb = S.ScoreEquippedId(b, slotKey, ctx)
+    local sa = S.ScoreEquippedId(a, slotKey, ctx, links and links[1])
+    local sb = S.ScoreEquippedId(b, slotKey, ctx, links and links[2])
     if a and b then
       if sb < sa then return sb, b end
       return sa, a
@@ -177,15 +177,16 @@ function S.EquippedScore(slotKey, ctx, player)
     if b then return 0, nil end
     return 0, nil
   end
-  local score, item = S.ScoreEquippedId(eq, slotKey, ctx)
+  local score, item = S.ScoreEquippedId(eq, slotKey, ctx, type(links) == "string" and links or nil)
   return score, eq, item
 end
 
 -- Combined main-hand + off-hand equipped score (for two-hand candidates).
 function S.EquippedWeaponPairScore(ctx, player)
   local mh, oh = player.equipped.MAINHAND, player.equipped.OFFHAND
-  local smh = S.ScoreEquippedId(mh, "MAINHAND", ctx)
-  local soh = S.ScoreEquippedId(oh, "OFFHAND", ctx)
+  local links = player.equippedLinks or {}
+  local smh = S.ScoreEquippedId(mh, "MAINHAND", ctx, links.MAINHAND)
+  local soh = S.ScoreEquippedId(oh, "OFFHAND", ctx, links.OFFHAND)
   return smh + soh, smh, soh
 end
 

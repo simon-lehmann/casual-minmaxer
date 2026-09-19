@@ -53,7 +53,28 @@ C.FLAG_ALLIANCE, C.FLAG_HORDE = 64, 128
 C.TIER = {
   minutesPerQuest = 10, groupOverhead = 15, travel = 15, trashRun = 45, vendorWalk = 5,
   craftOwn = 20, craftOther = 30, lotteryBelowPct = 15, namedMinutes = 30, rareMinutes = 30,
+  badgeGrind = 180, honorGrind = 240, arenaGrind = 900, repPerRank = 180,
 }
+
+-- Source-type filter key for a decoded source: vendors are split by currency (§6.4).
+-- V gold, E badges, H honor / PvP tokens, A arena, F reputation; every other code is its own key.
+C.SOURCE_FILTER_KEYS = { "Q", "B", "R", "N", "T", "G", "V", "E", "H", "A", "F", "K", "W" }
+function C.SourceFilterKey(src)
+  if src.t == "V" then
+    local m = src.mode
+    if m == "E" or m == "H" or m == "A" or m == "F" then return m end
+    return "V"
+  end
+  return src.t
+end
+function C.DefaultSourceFilters()
+  local out = {}
+  for _, k in ipairs(C.SOURCE_FILTER_KEYS) do out[k] = (k ~= "W" and k ~= "A") end
+  return out
+end
+-- Item RequiredReputationRank (4 friendly .. 7 exalted) -> client standingId (5 friendly .. 8 exalted)
+C.REP_RANK_NAMES = { [4] = "Friendly", [5] = "Honored", [6] = "Revered", [7] = "Exalted" }
+C.REP_STANDING_NEUTRAL = 4
 
 C.TIER_NAMES = { [1] = "Guaranteed, solo", [2] = "Guaranteed, group", [3] = "Farmable drop", [4] = "Lottery drop", [5] = "Buyable" }
 
@@ -84,6 +105,28 @@ C.SKILL_LINE_BY_NAME["Ingenieurskunst"] = 202
 C.SKILL_LINE_BY_NAME["Lederverarbeitung"] = 165
 C.SKILL_LINE_BY_NAME["Schneiderei"] = 197
 C.SKILL_LINE_BY_NAME["Juwelenschleifen"] = 755
+-- other client locales (profession skill-line names as shown by GetSkillLineInfo)
+local LOCALIZED_SKILLS = {
+  -- frFR
+  { "Alchimie", 171 }, { "Forge", 164 }, { "Enchantement", 333 }, { "Ingénierie", 202 }, { "Travail du cuir", 165 },
+  { "Couture", 197 }, { "Joaillerie", 755 },
+  -- esES / esMX
+  { "Alquimia", 171 }, { "Herrería", 164 }, { "Encantamiento", 333 }, { "Ingeniería", 202 }, { "Peletería", 165 },
+  { "Sastrería", 197 }, { "Joyería", 755 },
+  -- ptBR
+  { "Alquimia", 171 }, { "Ferraria", 164 }, { "Encantamento", 333 }, { "Engenharia", 202 }, { "Couraria", 165 },
+  { "Alfaiataria", 197 }, { "Joalheria", 755 },
+  -- ruRU
+  { "Алхимия", 171 }, { "Кузнечное дело", 164 }, { "Наложение чар", 333 }, { "Инженерное дело", 202 },
+  { "Кожевничество", 165 }, { "Портняжное дело", 197 }, { "Ювелирное дело", 755 },
+  -- koKR
+  { "연금술", 171 }, { "대장기술", 164 }, { "마법부여", 333 }, { "기계공학", 202 }, { "가죽세공", 165 }, { "재봉술", 197 }, { "보석세공", 755 },
+  -- zhCN
+  { "炼金术", 171 }, { "锻造", 164 }, { "附魔", 333 }, { "工程学", 202 }, { "制皮", 165 }, { "裁缝", 197 }, { "珠宝加工", 755 },
+  -- zhTW
+  { "鍊金術", 171 }, { "鍛造", 164 }, { "附魔", 333 }, { "工程學", 202 }, { "製皮", 165 }, { "裁縫", 197 }, { "珠寶設計", 755 },
+}
+for _, e in ipairs(LOCALIZED_SKILLS) do C.SKILL_LINE_BY_NAME[e[1]] = e[2] end
 
 -- Class bit masks (AllowableClass / quest RequiredClasses)
 C.CLASS_MASK = {
@@ -120,7 +163,7 @@ C.USABLE = {
   SHAMAN = { armor = set({ 0, 1, 2, 3, 6, 9 }), weapon = set({ 0, 1, 4, 5, 10, 13, 15 }), bestArmor = { 2, 3 } },
   MAGE = { armor = set({ 0, 1 }), weapon = set({ 7, 10, 15, 19 }), bestArmor = { 1, 1 } },
   WARLOCK = { armor = set({ 0, 1 }), weapon = set({ 7, 10, 15, 19 }), bestArmor = { 1, 1 } },
-  DRUID = { armor = set({ 0, 1, 2, 8 }), weapon = set({ 4, 5, 6, 10, 13, 15 }), bestArmor = { 2, 2 } },
+  DRUID = { armor = set({ 0, 1, 2, 8 }), weapon = set({ 4, 5, 10, 13, 15 }), bestArmor = { 2, 2 } },
 }
 
 -- Best usable armor subclass at a level (bestArmor = { below 40, at 40+ })

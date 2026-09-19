@@ -49,6 +49,27 @@ describe("Core", function()
     assert.equals(3, CasualMinMaxerDB.version)
   end)
 
+  it("migrates version-1 character filters to the split vendor keys", function()
+    CMM = H.LoadAddon() -- resets the saved variables; set the legacy table afterwards
+    _G.CasualMinMaxerCharDB = { version = 1, filters = { sources = { Q = true, V = false, B = true, W = false },
+      tiers = { [1] = true } } }
+    CMM.Core.InitSavedVariables()
+    local f = _G.CasualMinMaxerCharDB.filters.sources
+    assert.equals(CMM.Core.CHAR_VERSION, _G.CasualMinMaxerCharDB.version)
+    assert.is_false(f.V)
+    assert.is_false(f.E) -- follows the old vendor choice
+    assert.is_false(f.H)
+    assert.is_false(f.F)
+    assert.is_false(f.A)
+    assert.is_true(f.Q)
+    assert.is_true(f.K) -- missing keys get the default
+    _G.CasualMinMaxerCharDB = { version = 1, filters = { sources = { V = true } } }
+    CMM.Core.InitSavedVariables()
+    f = _G.CasualMinMaxerCharDB.filters.sources
+    assert.is_true(f.E and f.H and f.F)
+    assert.is_false(f.A)
+  end)
+
   it("resets settings", function()
     CMM = H.Boot()
     CasualMinMaxerDB.phase = 1

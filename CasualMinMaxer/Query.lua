@@ -10,7 +10,7 @@ local cache = {}
 
 
 Q.DEFAULT_FILTERS = {
-  sources = { Q = true, K = true, V = true, B = true, G = true, R = true, N = true, T = true, W = false },
+  sources = C.DefaultSourceFilters(),
   tiers = { [1] = true, [2] = true, [3] = true, [4] = false, [5] = false },
   dungeon = nil, zone = nil, groupOnly = false, armor = "all", special = true, sidegrades = false, sort = "eff",
 }
@@ -77,9 +77,11 @@ local function makeCtx(slotKey, player, o)
   }
 end
 
-local function usableBySlot(item, slotKey, player)
+-- opts.lookahead (default 0) or opts.level: the level at which armor unlocks (mail/plate at 40) are judged.
+local function usableBySlot(item, slotKey, player, opts)
+  local level = (opts and opts.level) or (player.level + ((opts and opts.lookahead) or 0))
   if item.cls == 4 then
-    if not player.usable.armor[item.sub] and not C.CanUseArmor(player.class, item.sub, player.level) then return false end
+    if not C.CanUseArmor(player.class, item.sub, level) then return false end
   elseif item.cls == 2 then
     if not C.CanUseWeapon(player.class, item.sub) then return false end
   end
@@ -90,6 +92,7 @@ local function usableBySlot(item, slotKey, player)
   end
   return true
 end
+Q.UsableBySlot = usableBySlot
 
 local function armorFilterOk(item, o, player)
   if o.filters.armor ~= "best" or item.cls ~= 4 then return true end
@@ -101,13 +104,17 @@ end
 local function sourceFilter(o, player)
   local f = o.filters
   return function(src, e)
-    if f.sources and not f.sources[src.t] then return false end
+    if f.sources and not f.sources[C.SourceFilterKey(src)] then return false end
     if f.groupOnly == "solo" or f.groupOnly == true then
       if e.group then return false end
     end
     if o.dungeon then
       local d = Data.Dungeon(o.dungeon)
-      local dungeonQuest = e.quest and e.quest.type == C.QUEST_DUNGEON and e.zone and d and d.zone == e.zone
+      local dungeonQuest = false
+      if e.quest and e.quest.type == C.QUEST_DUNGEON and e.zone and d then
+        if d.zone == e.zone then dungeonQuest = true end
+        for _, z in ipairs(d.qz or {}) do if z == e.zone then dungeonQuest = true end end
+      end
       if e.map ~= o.dungeon and not dungeonQuest then return false end
     end
     if o.zone and o.zone ~= "any" then
@@ -129,7 +136,7 @@ local function bestOneHandScore(slotKey, player, o, ctx)
   for _, id in ipairs(Data.ItemsForSlot(slotKey)) do
     local item = Data.Item(id)
     if item and item.inv ~= C.INV_TWO_HAND and item.req <= player.level + o.lookahead
-      and usableBySlot(item, slotKey, player) and Obtain.Gate(item, player, o) then
+      and usableBySlot(item, slotKey, player, o) and Obtain.Gate(item, player, o) then
       local s = Scoring.ScoreItem(item, ctx)
       if s > best then best = s end
     end
@@ -149,7 +156,7 @@ local function cacheKey(slotKey, player, o)
     slotKey, player.class, o.spec, player.level, player.faction, player.zoneName or "",
     serialize(o.weights), serialize(o.filters), o.sort, tostring(o.sidegrades), o.lookahead, o.phase,
     tostring(o.dungeon), tostring(o.zone), tostring(o.showSpecial), serialize(o.hidden),
-    serialize(player.equipped), serialize(player.professions), tostring(o.longevity),
+    serialize(player.equippedLinks or player.equipped), serialize(player.professions), tostring(o.longevity),
   }, "|")
 end
 
@@ -173,8 +180,8 @@ function Q.Run(slotKey, player, opts)
 
   for _, id in ipairs(Data.ItemsForSlot(slotKey)) do
     local item = Data.Item(id)
-    if item and not o.hidden[id] and item.req <= player.level + o.lookahead
-      and usableBySlot(item, slotKey, player) and armorFilterOk(item, o, player)
+    if item and not o.hidden[id] and #item.src > 0 and item.req <= player.level + o.lookahead
+      and usableBySlot(item, slotKey, player, o) and armorFilterOk(item, o, player)
       and not ((slotKey == "FINGER" or slotKey == "TRINKET") and Data.HasFlag(item, C.FLAG_UNIQUE) and CMM.Player.IsEquipped(id))
       and id ~= equippedId then
       local special = Data.HasFlag(item, C.FLAG_SPECIAL)
@@ -218,7 +225,7 @@ function Q.RunDungeon(mapId, player, opts)
   local filters = {}
   for k, v in pairs(baseFilters) do filters[k] = v end
   filters.tiers = { [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
-  filters.sources = { Q = true, K = false, V = false, B = true, G = true, R = false, N = false, T = true, W = false }
+  filters.sources = { Q = true, B = true, G = true, T = true }
   filters.dungeon = mapId
   merged.filters = filters
   merged.longevity = opts.longevity == true

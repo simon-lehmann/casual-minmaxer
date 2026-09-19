@@ -100,6 +100,108 @@ function Compat.ZoneName()
   return (GetRealZoneText and GetRealZoneText()) or (GetZoneText and GetZoneText()) or ""
 end
 
+function Compat.InventoryItemLink(slotId)
+  return GetInventoryItemLink and GetInventoryItemLink("player", slotId) or nil
+end
+
+-- "Equip:" tooltip lines -> canonical stats for what GetItemStats does not report on the Classic client
+-- (attack power, spell damage / healing, mp5, block value, feral AP, and ratings phrased as text).
+local EQUIP_PATTERNS = {
+  { "^Increases attack power by (%d+) in Cat, Bear", "FAP" },
+  { "^Increases attack power by (%d+)", "AP" },
+  { "^Increases ranged attack power by (%d+)", "RAP" },
+  { "^Increases damage and healing done by magical spells and effects by up to (%d+)", "SP" },
+  { "^Increases healing done by up to (%d+) and damage done by up to (%d+)", "HEAL", "SP" },
+  { "^Increases healing done by up to (%d+)", "HEAL" },
+  { "^Increases healing done by magical spells and effects by up to (%d+)", "HEAL" },
+  { "^Increases damage done by (%a+) spells and effects by up to (%d+)", "SCHOOL" },
+  { "^Restores (%d+) mana per 5 sec", "MP5" },
+  { "^Restores (%d+) health per 5 sec", "HP5" },
+  { "^Increases the block value of your shield by (%d+)", "BLOCKV" },
+  { "^Increases your spell hit rating by (%d+)", "SPHIT" },
+  { "^Improves spell hit rating by (%d+)", "SPHIT" },
+  { "^Increases your hit rating by (%d+)", "HIT" },
+  { "^Improves hit rating by (%d+)", "HIT" },
+  { "^Improves spell critical strike rating by (%d+)", "SPCRIT" },
+  { "^Increases your spell critical strike rating by (%d+)", "SPCRIT" },
+  { "^Improves critical strike rating by (%d+)", "CRIT" },
+  { "^Increases your critical strike rating by (%d+)", "CRIT" },
+  { "^Improves spell haste rating by (%d+)", "SPHASTE" },
+  { "^Improves haste rating by (%d+)", "HASTE" },
+  { "^Increases your expertise rating by (%d+)", "EXP" },
+  { "^Increases defense rating by (%d+)", "DEF" },
+  { "^Increases your dodge rating by (%d+)", "DODGE" },
+  { "^Increases your parry rating by (%d+)", "PARRY" },
+  { "^Increases your shield block rating by (%d+)", "BLOCK" },
+  { "^Improves your resilience rating by (%d+)", "RES" },
+  { "^Increases your armor penetration rating by (%d+)", "ARP" },
+  { "^Your attacks ignore (%d+) of your opponent's armor", "ARP" },
+}
+local SCHOOL_KEYS = { Fire = "SPFIRE", Frost = "SPFROST", Shadow = "SPSHADOW", Nature = "SPNATURE",
+  Arcane = "SPARCANE", Holy = "SPHOLY" }
+
+-- Parse one tooltip line ("Equip: ...") into stats; returns nil when it is not a recognised equip effect.
+function Compat.ParseEquipLine(text)
+  if type(text) ~= "string" then return nil end
+  local body = text:match("^Equip:%s*(.*)$")
+  if not body then return nil end
+  for _, pat in ipairs(EQUIP_PATTERNS) do
+    local a, b = body:match(pat[1])
+    if a then
+      if pat[2] == "SCHOOL" then
+        local key = SCHOOL_KEYS[a]
+        if key then return { [key] = tonumber(b) } end
+        return nil
+      end
+      local out = { [pat[2]] = tonumber(a) }
+      if pat[3] and b then out[pat[3]] = tonumber(b) end
+      return out
+    end
+  end
+  return nil
+end
+
+local scanTip
+-- Stats from the "Equip:" lines of an item link's tooltip. Returns {} when nothing is recognised.
+function Compat.ScanEquipStats(link)
+  local out = {}
+  if not link or not CreateFrame then return out end
+  if not scanTip then
+    scanTip = CreateFrame("GameTooltip", "CasualMinMaxerScanTip", UIParent, "GameTooltipTemplate")
+    if scanTip.SetOwner then scanTip:SetOwner(UIParent, "ANCHOR_NONE") end
+  end
+  if scanTip.ClearLines then scanTip:ClearLines() end
+  if not scanTip.SetHyperlink then return out end
+  local ok = pcall(scanTip.SetHyperlink, scanTip, link)
+  if not ok then return out end
+  local n = scanTip.NumLines and scanTip:NumLines() or 0
+  for i = 1, n do
+    local fs = _G["CasualMinMaxerScanTipTextLeft" .. i]
+    local text = fs and fs.GetText and fs:GetText()
+    local parsed = Compat.ParseEquipLine(text)
+    if parsed then
+      for k, v in pairs(parsed) do out[k] = (out[k] or 0) + v end
+    end
+  end
+  return out
+end
+
+-- Canonical stats for an item link: GetItemStats (mapped) plus tooltip-scanned equip effects for the
+-- keys the client does not report. Returns nil when the client has no data at all.
+local SCAN_KEYS = { AP = true, RAP = true, FAP = true, SP = true, HEAL = true, MP5 = true, HP5 = true, BLOCKV = true,
+  SPFIRE = true, SPFROST = true, SPSHADOW = true, SPNATURE = true, SPARCANE = true, SPHOLY = true, ARP = true }
+Compat.SCAN_KEYS = SCAN_KEYS
+function Compat.ItemStatsFromClient(link)
+  local mods = Compat.GetItemStats(link)
+  if not mods then return nil end
+  local stats = CMM.Scoring.FromItemStats(mods)
+  local scanned = Compat.ScanEquipStats(link)
+  for k, v in pairs(scanned) do
+    if stats[k] == nil and (SCAN_KEYS[k] or CMM.Constants.RATING_KEYS[k]) then stats[k] = v end
+  end
+  return stats, scanned
+end
+
 function Compat.InventoryItemID(slotId)
   if GetInventoryItemID then return GetInventoryItemID("player", slotId) end
   local link = GetInventoryItemLink and GetInventoryItemLink("player", slotId)

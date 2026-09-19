@@ -24,16 +24,20 @@ function P.DetectSpec(classToken)
   return name and name:upper():gsub("%s+", "") or "DEFAULT"
 end
 
+-- equipped: [slotKey] = itemId or { id1, id2 }; links: same shape with the full item links
+-- (random-suffix stats and enchant/gem context live only in the link).
 local function equipped()
-  local out = {}
+  local out, links = {}, {}
   for slotKey, ids in pairs(C.EQUIP_SLOTS) do
     if #ids == 1 then
       out[slotKey] = Compat.InventoryItemID(ids[1])
+      links[slotKey] = Compat.InventoryItemLink(ids[1])
     else
       out[slotKey] = { Compat.InventoryItemID(ids[1]), Compat.InventoryItemID(ids[2]) }
+      links[slotKey] = { Compat.InventoryItemLink(ids[1]), Compat.InventoryItemLink(ids[2]) }
     end
   end
-  return out
+  return out, links
 end
 
 function P.Refresh()
@@ -49,6 +53,7 @@ function P.Refresh()
     for sub in pairs(u.armor) do usable.armor[sub] = C.CanUseArmor(classToken, sub, level) end
     for sub in pairs(u.weapon) do usable.weapon[sub] = true end
   end
+  local eq, eqLinks = equipped()
   snapshot = {
     class = classToken,
     className = className,
@@ -63,7 +68,8 @@ function P.Refresh()
     spec = spec,
     specDetected = P.DetectSpec(classToken),
     professions = Compat.Professions(),
-    equipped = equipped(),
+    equipped = eq,
+    equippedLinks = eqLinks,
     zoneName = Compat.ZoneName(),
     canDualWield = C.CanDualWield(classToken, spec, level),
     usable = usable,

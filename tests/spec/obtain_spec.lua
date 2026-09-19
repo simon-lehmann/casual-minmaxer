@@ -102,13 +102,9 @@ describe("Obtain", function()
       CMM.Player.Refresh()
       assert.is_true(O.Gate(item(30012), CMM.Player.Get(), opts))
     end)
-    it("gates reputation vendors only when the standing is known and too low", function()
-      assert.is_true(O.Gate(item(30018), player, opts)) -- unknown faction: allowed
-      H.wow.player.factions[942] = 5 -- honored, needs revered (6)
-      local ok, why = O.Gate(item(30018), player, opts)
-      assert.is_false(ok)
-      assert.equals("reputation", why)
-      H.wow.player.factions[942] = 6
+    it("never gates reputation vendors (they get a time penalty instead)", function()
+      assert.is_true(O.Gate(item(30018), player, opts)) -- unknown faction
+      H.wow.player.factions[942] = 5 -- friendly (client standing ids: 4 neutral .. 8 exalted)
       assert.is_true(O.Gate(item(30018), player, opts))
     end)
     it("passes when at least one source is usable", function()
@@ -216,9 +212,29 @@ describe("Obtain", function()
       assert.equals("Vendor, 12g 50s", v.text)
       local p70 = { level = 70, class = "WARRIOR", classMask = 1, raceMask = 1, professions = {}, usable = player.usable, zoneName = "" }
       local ext = O.Evaluate(item(30020), p70, opts)
-      assert.equals("Vendor, badges or honor", ext.text)
+      assert.equals("Badge vendor", ext.text) -- price 0 is omitted
+      assert.equals(5, ext.tier)
+      assert.equals(T.badgeGrind, ext.minutes)
+      local honor = O.Evaluate(item(30040), p70, opts)
+      assert.equals("Honor / PvP vendor", honor.text)
+      assert.equals(T.honorGrind, honor.minutes)
+      local arena = O.Evaluate(item(30041), p70, opts)
+      assert.equals("Arena vendor", arena.text)
+      assert.equals(T.arenaGrind, arena.minutes)
+      -- reputation: needs revered (item rank 6 = client standing 7). Unknown faction counts as neutral (4)
       local rep = O.Evaluate(item(30018), player, opts)
+      assert.equals("Reputation vendor, Revered (3 ranks to go), 15g 0s", rep.text)
+      assert.equals(T.repPerRank * 3, rep.minutes)
+      assert.equals(3, rep.repMissing)
+      H.wow.player.factions[942] = 6 -- honored: one rank to go
+      rep = O.Evaluate(item(30018), player, opts)
+      assert.equals("Reputation vendor, Revered (1 rank to go), 15g 0s", rep.text)
+      assert.equals(T.repPerRank, rep.minutes)
+      H.wow.player.factions[942] = 7 -- revered: met
+      rep = O.Evaluate(item(30018), player, opts)
       assert.equals("Reputation vendor, Revered, 15g 0s", rep.text)
+      assert.equals(T.vendorWalk, rep.minutes)
+      H.wow.player.factions[942] = nil
       local k = O.Evaluate(item(30019), player, opts) -- needs BS 340, player has 300
       assert.equals(5, k.tier)
       assert.equals(T.craftOther, k.minutes)
@@ -261,6 +277,22 @@ describe("Obtain", function()
       assert.equals(66, O.LastsUntil(item(30010), "HEAD", ctx, player))
       -- the strongest helm has nothing guaranteed above it
       assert.equals(70, O.LastsUntil(item(30025), "HEAD", ctx, player))
+    end)
+    it("only considers items usable in the slot (a 1H sword does not shorten an off-hand's life)", function()
+      -- A character that cannot dual wield: OFFHAND candidates are shields / held only.
+      -- Add a guaranteed 1H that would beat the shield if it were allowed in OFFHAND.
+      player.canDualWield = false
+      local D = _G.CasualMinMaxer_Data
+      D.items[30990] = "Quest 1H Monster;13;2;7;3;115;64;0;0;DPS:90,SPEED:2.6,STR:60;;0;1"
+      D.src[30990] = "Q10000"
+      D.quests[10000] = "Chain A1;58;60;0;0;3521;0;0;10001;0;30990;"
+      CMM.Data.Unload()
+      CMM.Data.Load()
+      local ctx = H.Ctx(CMM, "OFFHAND")
+      assert.equals(70, O.LastsUntil(item(30405), "OFFHAND", ctx, player))
+      -- but in MAINHAND the 1H does overtake a weaker weapon
+      local ctxMH = H.Ctx(CMM, "MAINHAND")
+      assert.equals(64, O.LastsUntil(item(30401), "MAINHAND", ctxMH, player))
     end)
     it("ignores quests the character cannot take", function()
       H.wow.player.completedQuests[10013] = true
