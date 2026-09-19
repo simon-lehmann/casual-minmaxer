@@ -1,0 +1,38 @@
+## Interface: 20505
+## Title: Casual MinMaxer
+## Notes: Click a slot, get the biggest upgrades you can actually get. Ranked by stats, tagged by how hard they are to obtain.
+## Notes-deDE: Slot anklicken, die größten erreichbaren Upgrades sehen. Nach Werten sortiert, mit Beschaffungsaufwand.
+## Author: Simon Lehmann
+## Version: @project-version@
+## SavedVariables: CasualMinMaxerDB
+## SavedVariablesPerCharacter: CasualMinMaxerCharDB
+## OptionalDeps: CasualMinMaxer_Data, TomTom, Pawn
+## X-License: GPL-3.0-or-later
+## X-Category: Inventory
+## X-Website: https://github.com/simon-lehmann/casual-minmaxer
+## IconTexture: Interface\Icons\INV_Misc_EngGizmos_30
+
+Libs\embeds.xml
+Locales\enUS.lua
+Locales\deDE.lua
+Init.lua
+Compat.lua
+Constants.lua
+Ratings.lua
+Weights.lua
+Specials.lua
+Data.lua
+Player.lua
+Scoring.lua
+Obtain.lua
+Query.lua
+Pawn.lua
+Export.lua
+Validate.lua
+Core.lua
+UI\Window.lua
+UI\Rows.lua
+UI\QuestAdvisor.lua
+UI\Tooltip.lua
+UI\Options.lua
+UI\Minimap.lua

@@ -1,0 +1,12 @@
+# pipeline inputs and intermediates (rebuild with make data)
+pipeline/work/
+*.sqlite
+*.pyc
+__pycache__/
+.venv/
+# packaging
+dist/
+*.zip
+# editor
+.vscode/
+.idea/

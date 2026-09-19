@@ -1,0 +1,7 @@
+return {
+  default = {
+    verbose = true,
+    lpath = "./?.lua;./tests/?.lua",
+    ROOT = { "tests/spec" },
+  },
+}
