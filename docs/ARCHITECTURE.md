@@ -241,6 +241,17 @@ CMM.Pawn.Export(weights, name) -> str
 CMM.Export.String(player, weights) -> base64 string;  CMM.Export.Parse(str) -> table
 ```
 
+### 5.1 Core, events and UI entry points
+Core owns the event frame, SavedVariables (`CasualMinMaxerDB`, `CasualMinMaxerCharDB` with defaults +
+migration), and `/cmm` (`/cmm` toggle window; `/cmm <slot>` e.g. `/cmm head` opens that slot; `/cmm options`;
+`/cmm validate [n]`; `/cmm export`; `/cmm phase <1-5>`; `/cmm reset`; `/cmm debug`). Core fires on the
+internal bus (`CMM.On/CMM.Fire`): `"PLAYER_CHANGED"` (level, spec, professions, equipment or quests changed;
+Query cache already invalidated), `"DATA_LOADED"`, `"WEIGHTS_CHANGED"`, `"SETTINGS_CHANGED"`.
+UI exposes `CMM.UI.Toggle(slotKey)`, `CMM.UI.Show(slotKey)`, `CMM.UI.Hide()`, `CMM.UI.Refresh()`,
+`CMM.UI.OpenOptions()`; Core calls them only if present, so logic tests run without UI files.
+Active weights: `CMM.Core.ActiveWeights()` = `Weights.Get(class, spec, level)` overlaid with
+`CharDB.weights[spec]` (user sliders / Pawn import). Spec: `CharDB.specOverride or Player.Get().spec`.
+
 ## 6. Rules
 
 ### 6.1 Candidate set for a slot
