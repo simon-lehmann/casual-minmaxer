@@ -32,7 +32,7 @@ local function fakeItem(id)
   if id == 1001 then
     return { id = 1001, name = "Fixture Helm", inv = 1, cls = 4, sub = 2, q = 3, ilvl = 90, req = 60, classmask = 0,
       flags = 0, stats = { STA = 20, AGI = 15, AP = 30 }, sockets = "", sbonus = 0, phase = 1,
-      src = { { t = "Q", id = 5001 }, { t = "B", npc = 2001, pct = 20 } } }
+      src = { { t = "Q", quest = 5001 }, { t = "B", npc = 2001, pct = 20 } } }
   elseif id == 1002 then
     return { id = 1002, name = "Fixture Sword", inv = 13, cls = 2, sub = 7, q = 3, ilvl = 95, req = 62, classmask = 0,
       flags = 16, stats = { STA = 10, DPS = 60.5, SPEED = 2.6 }, sockets = "", sbonus = 0, phase = 1,
