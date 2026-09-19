@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-09-19)
 
 - Random-suffix and random-property greens are listed as auction-house candidates, one row per useful
   suffix (best 3 per base item), with stats computed from the client's ItemRandomSuffix / RandPropPoints tables.
