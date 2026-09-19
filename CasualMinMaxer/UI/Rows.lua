@@ -144,6 +144,9 @@ function Rows.DetailLines(row, player)
     local mine = player and player.professions and player.professions[s.skillLine]
     add(string.format("%s %d%s", L[SKILL_NAMES[s.skillLine] or "Profession"], s.skill or 0,
       mine and string.format(" (%s %d)", L["you have"], mine) or ""), 1, 1, 1)
+  elseif t == "S" then
+    add(L["Auction house"], 1, 1, 1)
+    add(L["Random-suffix item: any listed suffix can be bought; the best three for you are shown."], 0.8, 0.8, 0.8)
   elseif t == "W" then
     add(L["World drop (BoE)"], 1, 0.82, 0)
     add(string.format("%.2f%% %s", s.pct or 0, L["per mob, or buy it on the auction house"]), 1, 1, 1)
@@ -175,6 +178,12 @@ function Rows.DetailLines(row, player)
       if #parts >= 4 then break end
     end
     if #parts > 0 then add(L["Also"] .. ": " .. table.concat(parts, ", "), 0.7, 0.7, 0.7) end
+  end
+  if row.suffix and row.item and row.item.suffixStats then
+    local parts = {}
+    for k, v in pairs(row.item.suffixStats) do parts[#parts + 1] = string.format("+%d %s", v, L[k] or k) end
+    table.sort(parts)
+    add(string.format("%s: %s", call(CMM.Data, "SuffixName", row.suffix) or L["Random suffix"], table.concat(parts, ", ")), 0.6, 1, 0.6)
   end
   if row.minutes then add(string.format("%s: %s", L["Expected time"], UI.FormatMinutes(row.minutes)), 0.7, 0.7, 0.7) end
   return lines
@@ -246,7 +255,9 @@ end
 local function onEnter(self)
   if not self.row then return end
   GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-  if GameTooltip.SetItemByID then
+  if self.row.link then
+    GameTooltip:SetHyperlink(self.row.link)
+  elseif GameTooltip.SetItemByID then
     GameTooltip:SetItemByID(self.row.id)
   else
     GameTooltip:SetHyperlink("item:" .. self.row.id)
@@ -373,6 +384,10 @@ local function setIcon(b, id)
           local icon = it.GetItemIcon and it:GetItemIcon()
           if icon then b.icon:SetTexture(icon) end
           local name = it.GetItemName and it:GetItemName()
+          if name and b.row.suffix then
+            local suffixName = call(CMM.Data, "SuffixName", b.row.suffix)
+            if suffixName then name = name .. " " .. suffixName end
+          end
           if name then b.name:SetText(name) end
         end
       end)

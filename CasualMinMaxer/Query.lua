@@ -169,6 +169,8 @@ local function statsSignature(item)
   return table.concat(keys, ",")
 end
 
+Q.MAX_SUFFIX_ROWS = 3
+
 function Q.Dedupe(rows)
   local seen, out = {}, {}
   for _, row in ipairs(rows) do
@@ -199,6 +201,26 @@ function Q.Run(slotKey, player, opts)
   local equippedScore, equippedId = Scoring.EquippedScore(slotKey, ctx, player)
   local rows = {}
 
+  -- Evaluate one candidate (a pack item or a suffix virtual item); returns a row or nil.
+  local function evaluate(item, id, special, obtain)
+    local gain, gainPct, score = Scoring.Gain(item, slotKey, ctx, player)
+    local keep = gain > 0
+    if not keep and o.sidegrades then
+      local base = score - gain
+      keep = gain >= -0.05 * base
+    end
+    if not keep then return nil end
+    local hours = math.max(obtain.minutes, 1) / 60
+    local lasts = o.longevity and Obtain.LastsUntil(item, slotKey, ctx, player) or 70
+    local eff = gain / hours
+    return {
+      id = id, item = item, score = score, gain = gain, gainPct = gainPct, tier = obtain.tier,
+      minutes = obtain.minutes, eff = eff, obtain = obtain, lastsUntil = lasts,
+      value = eff * (lasts - player.level + 1), special = special, set = Data.HasFlag(item, C.FLAG_SET),
+      suffix = item.suffix, link = item.link,
+    }
+  end
+
   for _, id in ipairs(Data.ItemsForSlot(slotKey)) do
     local item = Data.Item(id)
     if item and not o.hidden[id] and #item.src > 0 and item.req <= player.level + o.lookahead
@@ -209,21 +231,19 @@ function Q.Run(slotKey, player, opts)
       if (o.showSpecial or not special) and Obtain.Gate(item, player, evalOpts) then
         local obtain = Obtain.Evaluate(item, player, evalOpts)
         if obtain and (not o.filters.tiers or o.filters.tiers[obtain.tier]) then
-          local gain, gainPct, score = Scoring.Gain(item, slotKey, ctx, player)
-          local keep = gain > 0
-          if not keep and o.sidegrades then
-            local base = score - gain
-            keep = gain >= -0.05 * base
-          end
-          if keep then
-            local hours = math.max(obtain.minutes, 1) / 60
-            local lasts = o.longevity and Obtain.LastsUntil(item, slotKey, ctx, player) or 70
-            local eff = gain / hours
-            rows[#rows + 1] = {
-              id = id, item = item, score = score, gain = gain, gainPct = gainPct, tier = obtain.tier,
-              minutes = obtain.minutes, eff = eff, obtain = obtain, lastsUntil = lasts,
-              value = eff * (lasts - player.level + 1), special = special, set = Data.HasFlag(item, C.FLAG_SET),
-            }
+          if item.rand then
+            -- random-enchant base: one virtual candidate per suffix, keep the best MAX_SUFFIX_ROWS upgrades
+            local variants = {}
+            for _, sid in ipairs(item.rand) do
+              local virtual = Data.WithSuffix(item, sid)
+              local row = virtual and evaluate(virtual, id, special, obtain)
+              if row then variants[#variants + 1] = row end
+            end
+            table.sort(variants, function(a, b) return a.score > b.score end)
+            for i = 1, math.min(Q.MAX_SUFFIX_ROWS, #variants) do rows[#rows + 1] = variants[i] end
+          else
+            local row = evaluate(item, id, special, obtain)
+            if row then rows[#rows + 1] = row end
           end
         end
       end

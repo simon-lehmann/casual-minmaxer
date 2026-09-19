@@ -5,7 +5,7 @@ CMM.Core = Core
 local C = CMM.Constants
 
 Core.DB_VERSION = 1
-Core.CHAR_VERSION = 2
+Core.CHAR_VERSION = 3
 
 local function copy(t)
   local out = {}
@@ -66,6 +66,11 @@ Core.CHAR_MIGRATIONS = {
         end
       end
     end
+  end,
+  -- 2 -> 3: auction-house random-suffix items (S) are a new source type, on by default
+  [2] = function(db)
+    local f = db.filters and db.filters.sources
+    if type(f) == "table" and f.S == nil then f.S = true end
   end,
 }
 

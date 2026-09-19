@@ -224,6 +224,9 @@ local function buildPanel()
   panel.repPerRank = makeSlider(panel, L["Reputation per rank (min)"], 30, 600, 10,
     function(v) Options.SetConstant("repPerRank", math.floor(v + 0.5)) end)
   panel.repPerRank:SetPoint("LEFT", panel.arenaGrind, "RIGHT", 70, 0)
+  panel.auction = makeSlider(panel, L["Auction house (min)"], 0, 120, 5,
+    function(v) Options.SetConstant("auction", math.floor(v + 0.5)) end)
+  panel.auction:SetPoint("LEFT", panel.repPerRank, "RIGHT", 70, 0)
 
   -- Pawn import / exports
   panel.pawnLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")

@@ -51,7 +51,30 @@ def tables(pack):
         "bosses": parse_file(os.path.join(out, "Bosses.lua"), "bosses"),
         "objects": parse_file(os.path.join(out, "Objects.lua"), "objects"),
         "dungeons": b.out_dungeons,
+        "rsuffix": parse_file(os.path.join(out, "Random.lua"), "rsuffix"),
+        "rprop": parse_file(os.path.join(out, "Random.lua"), "rprop"),
+        "randprop": parse_file(os.path.join(out, "Random.lua"), "randprop"),
+        "sbonus": parse_file(os.path.join(out, "SocketBonus.lua"), "sbonus"),
     }
+
+
+def test_random_suffix_greens(tables):
+    # Talonguard Armor (24968): BoE mail chest ilvl 99 with the Outland suffix pool -> S + W sources
+    rec = tables["items"][24968].split(";")
+    rand = [int(x) for x in rec[13].split(",")]
+    assert -7 in rand and -5 in rand and all(r < 0 for r in rand)
+    assert "S" in tables["src"][24968].split("|")
+    assert tables["rsuffix"][7] == "of the Bear;STR:6666,STA:10000"
+    assert tables["rsuffix"][5] == "of the Monkey;AGI:6666,STA:10000"
+    # scaling: Good group 0 at ilvl 99 = 46 -> +46 STA, +30 STR
+    good = tables["randprop"][99].split(";")[2].split(",")
+    assert good[0] == "46"
+    assert build.scaled_suffix_stats({"STR": 6666, "STA": 10000}, 46) == {"STR": 30.0, "STA": 46.0}
+    # vanilla fixed property pool exists and decodes through equip spells
+    assert any(v.startswith("of the Monkey;") and "AGI:" in v for v in tables["rprop"].values())
+    # every random item's ilvl has a RandPropPoints row and no S source without a drop source
+    assert len(tables["sbonus"]) >= 60
+    assert all(re.match(r"^[A-Z0-9]+:-?[\d.]+(,[A-Z0-9]+:-?[\d.]+)*$", v) for v in tables["sbonus"].values())
 
 
 def test_slave_pens_bosses_in_order(pack):
@@ -95,7 +118,12 @@ def test_item_record_shape(tables):
     ranged_subs = {2, 3, 16, 18}
     for iid, rec in tables["items"].items():
         f = rec.split(";")
-        assert len(f) == 13, (iid, rec)
+        assert len(f) == 14, (iid, rec)
+        for r in (f[13].split(",") if f[13] else []):
+            r = int(r)
+            assert (r < 0 and -r in tables["rsuffix"]) or (r > 0 and r in tables["rprop"]), (iid, r)
+        if f[13]:
+            assert int(f[5]) in tables["randprop"], (iid, "no RandPropPoints row for ilvl")
         assert f[0] and not re.search(r"[;|]", f[0])
         assert int(f[1]) in build.INV_GROUP and int(f[2]) in (2, 4) and int(f[4]) in (2, 3, 4)
         assert 1 <= int(f[12]) <= 5
@@ -119,11 +147,15 @@ def test_every_item_has_sources_and_vice_versa(tables):
 
 
 def test_sources_reference_existing_records(tables):
-    src_re = re.compile(r"^(Q\d+|B\d+:[\d.]+|R\d+:[\d.]+|N\d+:[\d.]+|T\d+:[\d.]+|G\d+:[\d.]+|V\d+:(0|E|H|A|F\d+-\d)|K\d+:\d+|W[\d.]+)$")
+    src_re = re.compile(r"^(Q\d+|B\d+:[\d.]+|R\d+:[\d.]+|N\d+:[\d.]+|T\d+:[\d.]+|G\d+:[\d.]+|V\d+:(0|E|H|A|F\d+-\d)|K\d+:\d+|S|W[\d.]+)$")
     for iid, s in tables["src"].items():
         for part in s.split("|"):
             assert src_re.match(part), (iid, part)
             code, body = part[0], part[1:]
+            if code == "S":
+                assert tables["items"][iid].split(";")[13] != "", (iid, "S source on a non-random item")
+                assert len(parts := s.split("|")) > 1, (iid, "S must pair with a drop source")
+                continue
             ref = int(re.match(r"\d+", body).group(0)) if code in "QBRNTGK" else None
             if code == "Q":
                 assert ref in tables["quests"], (iid, part)

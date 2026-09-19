@@ -13,7 +13,7 @@ describe("Core", function()
     assert.equals(2, CasualMinMaxerCharDB.lookahead)
     assert.is_true(CasualMinMaxerCharDB.filters.tiers[3])
     assert.is_false(CasualMinMaxerCharDB.filters.tiers[4])
-    assert.is_false(CasualMinMaxerCharDB.filters.sources.W)
+    assert.is_true(CasualMinMaxerCharDB.filters.sources.W) -- auction house era: world drops on by default
     assert.equals("eff", CasualMinMaxerCharDB.filters.sort)
     assert.same({}, CasualMinMaxerCharDB.hidden)
     assert.equals(CasualMinMaxerDB, CMM.db)

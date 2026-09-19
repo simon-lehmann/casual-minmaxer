@@ -50,6 +50,7 @@ end
 function V.CheckItem(id)
   local item = Data.Item(id)
   if not item then return nil, "not in data pack" end
+  if item.rand then return nil, "random enchant item (client stats vary by suffix)" end
   local link = "item:" .. id
   local mods = Compat.GetItemStats(link)
   if not mods then return nil, "not cached by client" end
@@ -90,6 +91,8 @@ function V.Run(n, opts)
       else result.mismatches[#result.mismatches + 1] = { id = id, name = Data.Item(id).name, diffs = diffs } end
     elseif why == "not cached by client" then
       result.pending = result.pending + 1
+    elseif why and why:find("random enchant", 1, true) then
+      result.skippedRandom = (result.skippedRandom or 0) + 1
       Compat.OnItemLoad(id, function() end) -- ask the client to cache it for the next run
     end
   end
@@ -103,6 +106,9 @@ function V.Report(result)
   table.sort(keys)
   CMM.Print("compared via GetItemStats: %s; spell effects (AP, SP, HEAL, MP5, BLOCKV, FAP, ...) via tooltip scan",
     table.concat(keys, " "))
+  if (result.skippedRandom or 0) > 0 then
+    CMM.Print("validate: %d random-enchant base items skipped (their client stats depend on the suffix)", result.skippedRandom)
+  end
   CMM.Print("validate: %d checked, %d ok, %d mismatched, %d pending (not cached yet, run again)",
     result.checked, result.ok, #result.mismatches, result.pending)
   for _, m in ipairs(result.mismatches) do

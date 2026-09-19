@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import csv
 import os
 import re
 import sqlite3
@@ -71,7 +72,19 @@ FLAG_ALLIANCE, FLAG_HORDE = 64, 128  # AllowableRace restricted to one faction
 FLAG_PROFESSION = 256  # equipping requires the crafting profession (item_template.RequiredSkill)
 GATHERING_SKILLS = {182, 186, 356}  # herbalism, mining, fishing: items needing these are not shipped
 
-SRC_ORDER = {c: i for i, c in enumerate("QKVBGRNTW")}
+SRC_ORDER = {c: i for i, c in enumerate("QKVSBGRNTW")}
+
+# SpellItemEnchantment Effect 5 (ITEM_MOD id) -> stat key; ids 38+ exist only in enchantments in TBC
+ENCH_MOD = dict(STAT_TYPE)
+ENCH_MOD.update({38: "AP", 39: "RAP", 40: "FAP", 41: "HEAL", 42: "SP", 43: "MP5", 44: "ARP", 45: "SP", 46: "HP5"})
+
+# RandPropPoints column group by inventory type (TrinityCore GetRandomPropertiesPoints)
+RPP_GROUP = {1: 0, 5: 0, 20: 0, 7: 0, 17: 0,
+             3: 1, 6: 1, 8: 1, 10: 1, 12: 1,
+             2: 2, 9: 2, 11: 2, 16: 2, 14: 2, 23: 2,
+             13: 3, 21: 3, 22: 3,
+             15: 4, 25: 4, 26: 4, 28: 4}
+DBC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dbc")
 
 BAD_NAME_PREFIX = ("Monster -", "Deprecated", "[PH]", "TEST", "OLD", "[DEP", "[DND", "(OLD)", "zzOLD", "Test ")
 
@@ -190,6 +203,131 @@ def sort_sources(sources):
 # Stat decoding
 # ---------------------------------------------------------------------------------------------
 
+def decode_spell_auras(sp: dict, stats) -> bool:
+    """Add the stats granted by an equip spell's auras to `stats`; return True when the spell has an
+    effect that is not a plain stat aura (proc, use, unknown aura) so the item counts as special."""
+    special = False
+    for e in range(1, 4):
+        eff = sp.get(f"Effect{e}") or 0
+        if eff == 0:
+            continue
+        aura = sp.get(f"EffectApplyAuraName{e}") or 0
+        base = (sp.get(f"EffectBasePoints{e}") or 0) + (sp.get(f"EffectDieSides{e}") or 0)
+        misc = sp.get(f"EffectMiscValue{e}") or 0
+        if eff != 6:  # not APPLY_AURA
+            special = True
+            continue
+        if aura == 99:
+            stats["FAP" if (sp.get("Stances") or 0) != 0 else "AP"] += base
+        elif aura == 124:
+            # "+X Attack Power" spells carry both aura 99 and 124; only pure ranged-AP spells count as RAP
+            if not any(sp.get(f"EffectApplyAuraName{k}") == 99 for k in range(1, 4)):
+                stats["RAP"] += base
+        elif aura == 13:
+            if misc == 126 or misc == 127:
+                stats["SP"] += base
+            elif misc in SCHOOL_KEY:
+                stats[SCHOOL_KEY[misc]] += base
+            else:
+                # multi-school but not all: count as generic SP of the lowest contribution
+                stats["SP"] += base
+        elif aura == 135:
+            stats["HEAL"] += base
+        elif aura == 85:
+            if misc == 0:
+                stats["MP5"] += base
+            elif misc == 1:
+                stats["HP5"] += base
+            else:
+                special = True
+        elif aura == 29:
+            # MOD_STAT (random-property enchant spells such as "+1 Agility"): misc 0 STR 1 AGI 2 STA 3 INT 4 SPI, -1 all
+            if misc == -1:
+                for k in ("STR", "AGI", "STA", "INT", "SPI"):
+                    stats[k] += base
+            elif misc in MOD_STAT_KEY:
+                stats[MOD_STAT_KEY[misc]] += base
+            else:
+                special = True
+        elif aura == 161:
+            stats["HP5"] += base
+        elif aura == 158:
+            stats["BLOCKV"] += base
+        elif aura == 123:
+            stats["ARP"] += base
+        elif aura == 189:
+            matched = False
+            for bitv, key in RATING_BITS:
+                if misc & bitv:
+                    if not matched or key not in stats or True:
+                        pass
+                    matched = True
+            seen = set()
+            for bitv, key in RATING_BITS:
+                if misc & bitv and key not in seen:
+                    stats[key] += base
+                    seen.add(key)
+            if not matched:
+                special = True
+        else:
+            special = True
+    return special
+
+
+MOD_STAT_KEY = {0: "STR", 1: "AGI", 2: "STA", 3: "INT", 4: "SPI"}
+
+
+def decode_enchant(row: dict, spells: dict):
+    """SpellItemEnchantment row -> (stats dict, keys list). Effect 5 = flat stat (EffectPointsMin, 0 for
+    scaling suffix enchants), Effect 3 = equip spell decoded through spell_template. Keys keep the
+    effect order so a scaling suffix can pair AllocationPct_i with the enchant's stat."""
+    stats = defaultdict(float)
+    keys = []
+    for i in range(3):
+        eff = int(row.get(f"Effect_{i}") or 0)
+        arg = int(row.get(f"EffectArg_{i}") or 0)
+        pts = int(row.get(f"EffectPointsMin_{i}") or 0)
+        if eff == 5 and arg in ENCH_MOD:
+            stats[ENCH_MOD[arg]] += pts
+            keys.append(ENCH_MOD[arg])
+        elif eff == 3 and arg in spells:
+            tmp = defaultdict(float)
+            decode_spell_auras(spells[arg], tmp)
+            for k, v in tmp.items():
+                stats[k] += v
+                if k not in keys:
+                    keys.append(k)
+    return {k: v for k, v in stats.items() if abs(v) > 1e-9}, keys
+
+
+def load_dbc(dbc_dir: str = DBC_DIR):
+    """Read the four random-enchant tables (wago.tools CSV exports) -> dict of dicts keyed by int id."""
+    out = {}
+    for name in ("ItemRandomSuffix", "ItemRandomProperties", "SpellItemEnchantment", "RandPropPoints"):
+        path = os.path.join(dbc_dir, name + ".csv")
+        table = {}
+        if os.path.exists(path):
+            with open(path, encoding="utf-8", newline="") as f:
+                for row in csv.DictReader(f):
+                    table[int(row["ID"])] = row
+        out[name] = table
+    return out
+
+
+def rpp_points(rpp: dict, ilvl: int, quality: int, inv: int) -> int:
+    row = rpp.get(ilvl)
+    group = RPP_GROUP.get(inv)
+    if not row or group is None:
+        return 0
+    col = "Epic" if quality >= 4 else ("Superior" if quality == 3 else "Good")
+    return int(row.get(f"{col}_{group}") or 0)
+
+
+def scaled_suffix_stats(alloc: dict, points: int) -> dict:
+    """Random suffix stat values: floor(AllocationPct * points / 10000) per stat."""
+    return {k: float(int(a * points // 10000)) for k, a in alloc.items() if int(a * points // 10000) > 0}
+
+
 def decode_item_stats(item: dict, spells: dict):
     """Return (stats dict, special flag) for an item_template row (dict) using spells {id: row}."""
     stats = defaultdict(float)
@@ -214,61 +352,8 @@ def decode_item_stats(item: dict, spells: dict):
         if not sp:
             special = True
             continue
-        for e in range(1, 4):
-            eff = sp.get(f"Effect{e}") or 0
-            if eff == 0:
-                continue
-            aura = sp.get(f"EffectApplyAuraName{e}") or 0
-            base = (sp.get(f"EffectBasePoints{e}") or 0) + (sp.get(f"EffectDieSides{e}") or 0)
-            misc = sp.get(f"EffectMiscValue{e}") or 0
-            if eff != 6:  # not APPLY_AURA
-                special = True
-                continue
-            if aura == 99:
-                stats["FAP" if (sp.get("Stances") or 0) != 0 else "AP"] += base
-            elif aura == 124:
-                # "+X Attack Power" spells carry both aura 99 and 124; only pure ranged-AP spells count as RAP
-                if not any(sp.get(f"EffectApplyAuraName{k}") == 99 for k in range(1, 4)):
-                    stats["RAP"] += base
-            elif aura == 13:
-                if misc == 126 or misc == 127:
-                    stats["SP"] += base
-                elif misc in SCHOOL_KEY:
-                    stats[SCHOOL_KEY[misc]] += base
-                else:
-                    # multi-school but not all: count as generic SP of the lowest contribution
-                    stats["SP"] += base
-            elif aura == 135:
-                stats["HEAL"] += base
-            elif aura == 85:
-                if misc == 0:
-                    stats["MP5"] += base
-                elif misc == 1:
-                    stats["HP5"] += base
-                else:
-                    special = True
-            elif aura == 161:
-                stats["HP5"] += base
-            elif aura == 158:
-                stats["BLOCKV"] += base
-            elif aura == 123:
-                stats["ARP"] += base
-            elif aura == 189:
-                matched = False
-                for bitv, key in RATING_BITS:
-                    if misc & bitv:
-                        if not matched or key not in stats or True:
-                            pass
-                        matched = True
-                seen = set()
-                for bitv, key in RATING_BITS:
-                    if misc & bitv and key not in seen:
-                        stats[key] += base
-                        seen.add(key)
-                if not matched:
-                    special = True
-            else:
-                special = True
+        if decode_spell_auras(sp, stats):
+            special = True
     # weapons
     cls = item.get("class")
     sub = item.get("subclass") or 0
@@ -355,6 +440,7 @@ class Builder:
         self.specials = load_override("specials.json", {})
         self.fixes = load_override("fixes.json", {})
         self.overrides = { "vendors": load_override("vendors.json", {}) }
+        self.dbc = load_dbc()
         self.report = defaultdict(int)
 
     # -- helpers -------------------------------------------------------------------------------
@@ -447,6 +533,14 @@ class Builder:
         for r in self.rows("select * from spell_template"):
             self.spells[r["Id"]] = r
 
+        # random enchant pools: item_enchantment_template.entry = abs(RandomProperty / RandomSuffix)
+        self.ench_tmpl = defaultdict(list)
+        try:
+            for r in self.rows("select entry, ench, chance from item_enchantment_template order by entry, ench"):
+                self.ench_tmpl[r["entry"]].append(r["ench"])
+        except sqlite3.OperationalError:
+            pass
+
     # -- loot ----------------------------------------------------------------------------------
     def load_loot(self):
         refs = defaultdict(list)
@@ -525,13 +619,74 @@ class Builder:
             name = r["name"] or ""
             if any(name.startswith(p) for p in BAD_NAME_PREFIX) or not name.strip():
                 continue
-            if (r["RandomProperty"] or 0) != 0 or (r["RandomSuffix"] or 0) != 0:
-                continue
             if (r["RequiredSkill"] or 0) in GATHERING_SKILLS:
                 continue
             items[r["entry"]] = r
         return items
 
+
+    # -- random enchants ---------------------------------------------------------------------
+    def suffix_record(self, sid: int):
+        """ItemRandomSuffix id -> (name, {key: allocPct}) or None when no stat maps to a §2 key."""
+        row = self.dbc["ItemRandomSuffix"].get(sid)
+        if not row:
+            return None
+        alloc = {}
+        for i in range(5):
+            ench = int(row.get(f"Enchantment_{i}") or 0)
+            pct = int(row.get(f"AllocationPct_{i}") or 0)
+            if not ench or not pct:
+                continue
+            erow = self.dbc["SpellItemEnchantment"].get(ench)
+            if not erow:
+                continue
+            _stats, keys = decode_enchant(erow, self.spells)
+            for k in keys:
+                alloc[k] = alloc.get(k, 0) + pct
+        if not alloc:
+            return None
+        return clean(row.get("Name_lang") or ""), alloc
+
+    def property_record(self, pid: int):
+        """ItemRandomProperties id -> (name, {key: value}) or None."""
+        row = self.dbc["ItemRandomProperties"].get(pid)
+        if not row:
+            return None
+        stats = defaultdict(float)
+        for i in range(5):
+            ench = int(row.get(f"Enchantment_{i}") or 0)
+            erow = ench and self.dbc["SpellItemEnchantment"].get(ench)
+            if not erow:
+                continue
+            st, _keys = decode_enchant(erow, self.spells)
+            for k, v in st.items():
+                stats[k] += v
+        stats = {k: v for k, v in stats.items() if abs(v) > 1e-9}
+        if not stats:
+            return None
+        return clean(row.get("Name_lang") or ""), stats
+
+    def random_ids(self, it: dict):
+        """Signed enchant ids an item can roll: negative = ItemRandomSuffix (scaling), positive = ItemRandomProperties."""
+        out = []
+        suffix = abs(it.get("RandomSuffix") or 0)
+        prop = it.get("RandomProperty") or 0
+        if suffix:
+            for sid in self.ench_tmpl.get(suffix, []):
+                if self.suffix_record(sid):
+                    out.append(-sid)
+        elif prop > 0:
+            for pid in self.ench_tmpl.get(prop, []):
+                if self.property_record(pid):
+                    out.append(pid)
+        return out
+
+    def socket_bonus_stats(self, ench: int):
+        erow = self.dbc["SpellItemEnchantment"].get(ench)
+        if not erow:
+            return None
+        st, _keys = decode_enchant(erow, self.spells)
+        return st or None
 
     @staticmethod
     def vendor_mode(it, vend, badge_vendors, raid_vendors, arena_prefixes, token_ilvls):
@@ -659,7 +814,9 @@ class Builder:
             if not rows:
                 continue
             flat = flatten_loot_table(rows, self.refs, exclude_refs=self.broad_refs)
-            generic = sum(1 for i in flat if i in item_ids) > GENERIC_CHEST_ITEMS
+            # random-enchant greens are world filler in every chest table; only fixed items decide "generic"
+            generic = sum(1 for i in flat if i in item_ids and not (
+                (items[i]["RandomProperty"] or 0) or (items[i]["RandomSuffix"] or 0))) > GENERIC_CHEST_ITEMS
             for item, pct in flat.items():
                 if item in item_ids:
                     if m in self.raid_maps:
@@ -753,8 +910,12 @@ class Builder:
         # assemble items
         self.out_items = {}
         self.out_src = {}
+        self.used_rand, self.used_ilvls, self.used_sbonus = set(), set(), set()
         for iid, it in items.items():
-            srcs = sources.get(iid)
+            srcs = list(sources.get(iid) or [])
+            rand = self.random_ids(it)
+            if rand and srcs and (it["bonding"] or 0) != 1:
+                srcs.append("S")  # auction house: BoE random-enchant item
             if not srcs:
                 if raid_only.get(iid):
                     # raid loot is not a recommendation, but it is shipped source-less so an equipped
@@ -776,8 +937,15 @@ class Builder:
             rec = [clean(it["name"]), str(it["InventoryType"]), str(it["class"]), str(it["subclass"] or 0),
                    str(it["Quality"]), str(it["ItemLevel"] or 0), str(it["RequiredLevel"] or 0),
                    str(classmask_field(it["AllowableClass"])), str(flags), stats_to_str(stats), sockets,
-                   str(it["socketBonus"] or 0), str(phase)]
+                   str(it["socketBonus"] or 0), str(phase), ",".join(str(r) for r in rand)]
             self.out_items[iid] = rec
+            if rand:
+                self.report["random_items"] += 1
+                for r in rand:
+                    self.used_rand.add(r)
+                self.used_ilvls.add(int(it["ItemLevel"] or 0))
+            if (it["socketBonus"] or 0) > 0:
+                self.used_sbonus.add(int(it["socketBonus"]))
             self.out_src[iid] = sort_sources(srcs)
             self.report[f"group_{INV_GROUP[it['InventoryType']]}"] += 1
             for s in self.out_src[iid]:
@@ -937,6 +1105,7 @@ class Builder:
             "local D = CasualMinMaxer_Data",
             "D.items, D.src, D.quests, D.npcs, D.bosses, D.dungeons, D.objects, D.zones, D.specials = "
             "{}, {}, {}, {}, {}, {}, {}, {}, {}",
+            "D.rsuffix, D.rprop, D.randprop, D.sbonus = {}, {}, {}, {}",
             "D.meta = { version = %s, built = %s, dbVersion = %s, items = %d, quests = %d, phases = 5 }" % (
                 lua_str(meta["version"]), lua_str(meta["built"]), lua_str(meta["dbVersion"]), meta["items"], meta["quests"]),
         ])
@@ -969,7 +1138,34 @@ class Builder:
         w("Specials.lua", ["local D = CasualMinMaxer_Data"] +
           [f"D.specials[{int(k)}]={lua_str(v if isinstance(v, str) else stats_to_str(v))}"
            for k, v in sorted(self.specials.items(), key=lambda kv: int(kv[0])) if int(k) in self.out_items])
-        toc = ["## Interface: 20505", "## Title: Casual MinMaxer Data",
+        rl = ["local D = CasualMinMaxer_Data"]
+        self.out_rsuffix, self.out_rprop, self.out_randprop, self.out_sbonus = {}, {}, {}, {}
+        for r in sorted(self.used_rand):
+            if r < 0:
+                name, alloc = self.suffix_record(-r)
+                self.out_rsuffix[-r] = name + ";" + ",".join(f"{k}:{int(v)}" for k, v in sorted(alloc.items(), key=lambda kv: STAT_ORDER.get(kv[0], 99)))
+            else:
+                name, st = self.property_record(r)
+                self.out_rprop[r] = name + ";" + stats_to_str(st)
+        for sid, rec in sorted(self.out_rsuffix.items()):
+            rl.append(f"D.rsuffix[{sid}]={lua_str(rec)}")
+        for pid, rec in sorted(self.out_rprop.items()):
+            rl.append(f"D.rprop[{pid}]={lua_str(rec)}")
+        for ilvl in sorted(self.used_ilvls):
+            row = self.dbc["RandPropPoints"].get(ilvl)
+            if row:
+                cols = [";".join([",".join(str(int(row.get(f"{q}_{g}") or 0)) for g in range(5)) for q in ("Epic", "Superior", "Good")])]
+                self.out_randprop[ilvl] = cols[0]
+                rl.append(f"D.randprop[{ilvl}]={lua_str(cols[0])}")
+        w("Random.lua", rl)
+        sl = ["local D = CasualMinMaxer_Data"]
+        for ench in sorted(self.used_sbonus):
+            st = self.socket_bonus_stats(ench)
+            if st:
+                self.out_sbonus[ench] = stats_to_str(st)
+                sl.append(f"D.sbonus[{ench}]={lua_str(self.out_sbonus[ench])}")
+        w("SocketBonus.lua", sl)
+        toc = ["## Interface: 20506", "## Title: Casual MinMaxer Data",
                "## Notes: Item, quest and dungeon data for Casual MinMaxer (generated from CMaNGOS TBC-DB, GPL-3).",
                "## Author: Simon Lehmann", "## Version: @project-version@", "## LoadOnDemand: 1",
                "## Dependencies: CasualMinMaxer", "## X-License: GPL-3.0-or-later",
@@ -991,6 +1187,10 @@ class Builder:
                     "zones": {str(k): v for k, v in self.out_zones.items()},
                     "specials": {str(k): (v if isinstance(v, str) else stats_to_str(v))
                                  for k, v in self.specials.items() if int(k) in self.out_items},
+                    "rsuffix": {str(k): v for k, v in self.out_rsuffix.items()},
+                    "rprop": {str(k): v for k, v in self.out_rprop.items()},
+                    "randprop": {str(k): v for k, v in self.out_randprop.items()},
+                    "sbonus": {str(k): v for k, v in self.out_sbonus.items()},
                 }, f, separators=(",", ":"))
         size = sum(os.path.getsize(os.path.join(out_dir, f)) for f in os.listdir(out_dir))
         return meta, size

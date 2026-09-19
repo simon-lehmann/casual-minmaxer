@@ -7,6 +7,7 @@ local C = CMM.Constants
 local DATA_ADDON = "CasualMinMaxer_Data"
 local D -- CasualMinMaxer_Data once loaded
 local itemCache, questCache, npcCache, bossCache, objectCache = {}, {}, {}, {}, {}
+local suffixCache = {}
 local slotIndex -- [slotKey] = array of ids
 
 local function split(s, sep)
@@ -69,6 +70,7 @@ local function parseSource(tok)
     return { t = "K", skillLine = tonumber(skill), skill = tonumber(value) or 0 }
   end
   if code == "W" then return { t = "W", pct = tonumber(body) or 0 } end
+  if code == "S" then return { t = "S" } end
   return nil
 end
 Data.ParseSource = parseSource
@@ -126,8 +128,13 @@ function Data.Load()
   D.objects = D.objects or {}
   D.zones = D.zones or {}
   D.specials = D.specials or {}
+  D.rsuffix = D.rsuffix or {}
+  D.rprop = D.rprop or {}
+  D.randprop = D.randprop or {}
+  D.sbonus = D.sbonus or {}
   D.meta = D.meta or {}
   itemCache, questCache, npcCache, bossCache, objectCache = {}, {}, {}, {}, {}
+  suffixCache = {}
   buildIndex()
   CMM.Fire("DATA_LOADED")
   return true
@@ -137,6 +144,7 @@ end
 function Data.Unload()
   D, slotIndex = nil, nil
   itemCache, questCache, npcCache, bossCache, objectCache = {}, {}, {}, {}, {}
+  suffixCache = {}
 end
 
 function Data.Meta()
@@ -146,6 +154,12 @@ end
 local srcMeta = {
   __index = function(item, key)
     if key == "src" then return Data.ParseSources(D.src[item.id]) end
+    if key == "rand" and rawget(item, "randRaw") then
+      -- random-enchant pool, parsed on access like sources (26 ids per Outland green add up)
+      local rand = {}
+      for tok in item.randRaw:gmatch("-?%d+") do rand[#rand + 1] = tonumber(tok) end
+      return rand
+    end
     return nil
   end,
 }
@@ -175,6 +189,7 @@ function Data.Item(id)
     sbonus = tonumber(f[12]) or 0,
     phase = tonumber(f[13]) or 1,
   }
+  if f[14] and f[14] ~= "" then item.randRaw = f[14] end
   item.slot = C.INV_TO_SLOT[item.inv]
   local special = D.specials[id]
   if special and special ~= "" then item.special = parseStats(special) end
@@ -183,6 +198,96 @@ function Data.Item(id)
   setmetatable(item, srcMeta)
   itemCache[id] = item
   return item
+end
+
+-- Random enchants (§4.11). id < 0: ItemRandomSuffix (scaling), id > 0: ItemRandomProperties (fixed).
+function Data.Suffix(id)
+  if not D or not id or id == 0 then return nil end
+  local cached = suffixCache[id]
+  if cached ~= nil then return cached or nil end
+  local rec
+  if id < 0 then
+    local raw = D.rsuffix[-id]
+    if raw then
+      local f = split(raw, ";")
+      rec = { id = id, name = f[1] or "", alloc = parseStats(f[2]) }
+    end
+  else
+    local raw = D.rprop[id]
+    if raw then
+      local f = split(raw, ";")
+      rec = { id = id, name = f[1] or "", stats = parseStats(f[2]) }
+    end
+  end
+  suffixCache[id] = rec or false
+  return rec
+end
+
+function Data.SuffixName(id)
+  local rec = Data.Suffix(id)
+  return rec and rec.name or nil
+end
+
+-- RandPropPoints column group by inventory type (§4.11)
+local RPP_GROUP = { [1] = 0, [5] = 0, [20] = 0, [7] = 0, [17] = 0, [3] = 1, [6] = 1, [8] = 1, [10] = 1, [12] = 1,
+  [2] = 2, [9] = 2, [11] = 2, [16] = 2, [14] = 2, [23] = 2, [13] = 3, [21] = 3, [22] = 3,
+  [15] = 4, [25] = 4, [26] = 4, [28] = 4 }
+
+function Data.RandPropPoints(ilvl, quality, inv)
+  if not D then return 0 end
+  local raw = D.randprop[ilvl]
+  local group = RPP_GROUP[inv]
+  if not raw or not group then return 0 end
+  local cols = split(raw, ";")
+  local col = (quality >= 4) and cols[1] or (quality == 3 and cols[2] or cols[3])
+  if not col then return 0 end
+  local vals = split(col, ",")
+  return tonumber(vals[group + 1]) or 0
+end
+
+-- Stats a suffix grants on this base item (scaling suffixes use the item's level, quality and slot).
+function Data.SuffixStats(item, id)
+  local rec = Data.Suffix(id)
+  if not rec then return nil end
+  if rec.stats then
+    local out = {}
+    for k, v in pairs(rec.stats) do out[k] = v end
+    return out
+  end
+  local points = Data.RandPropPoints(item.ilvl, item.q, item.inv)
+  local out = {}
+  for k, pct in pairs(rec.alloc) do
+    local v = math.floor(pct * points / 10000)
+    if v > 0 then out[k] = v end
+  end
+  return out
+end
+
+-- Virtual item: the base item with one suffix applied (same id, `suffix` set, stats merged).
+function Data.WithSuffix(item, id)
+  local extra = Data.SuffixStats(item, id)
+  if not extra then return nil end
+  local stats = {}
+  for k, v in pairs(item.stats) do stats[k] = v end
+  for k, v in pairs(extra) do stats[k] = (stats[k] or 0) + v end
+  local copy = {}
+  for k, v in pairs(item) do copy[k] = v end
+  copy.stats = stats
+  copy.suffixStats = extra
+  copy.suffix = id
+  copy.rand = false -- a virtual item never expands again
+  copy.randRaw = nil
+  copy.name = item.name .. " " .. (Data.SuffixName(id) or "")
+  copy.src = item.src -- parsed list (the base parses on access)
+  copy.link = string.format("item:%d:0:0:0:0:0:%d", item.id, id)
+  return copy
+end
+
+function Data.SocketBonus(enchantId)
+  if not D or not enchantId or enchantId == 0 then return nil end
+  local raw = D.sbonus[enchantId]
+  if not raw or raw == "" then return nil end
+  return parseStats(raw)
 end
 
 function Data.HasFlag(item, flag)

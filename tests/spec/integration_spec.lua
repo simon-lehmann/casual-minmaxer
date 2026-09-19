@@ -386,4 +386,25 @@ describe("integration: real UI over the real data pack", function()
     for _, e in ipairs(CMM.UI.state.entries) do if e.header then headers = headers + 1 end end
     assert.is_true(headers >= 1)
   end)
+
+  it("renders auction-house suffix rows with the suffix name and stats in the detail panel", function()
+    local CMM = H.Boot({ ui = true, realWeights = true })
+    local c = _G.CasualMinMaxerCharDB
+    c.filters.sources.S = true
+    c.filters.sources.W = true
+    for t = 1, 5 do c.filters.tiers[t] = true end
+    CMM.UI.Show("CHEST")
+    local found
+    for _, e in ipairs(CMM.UI.state.entries) do
+      if e.row and e.row.suffix and e.row.id == 30050 then found = e.row break end
+    end
+    assert.is_not_nil(found, "no suffix row rendered for the fixture green")
+    assert.equals("Fixture Mail Chest of the Bear", found.item.name)
+    local lines = CMM.UI.Rows.DetailLines(found, CMM.Player.Get())
+    local joined = {}
+    for _, l in ipairs(lines) do joined[#joined + 1] = l.text end
+    joined = table.concat(joined, "\n")
+    assert.is_truthy(joined:find("of the Bear: +30 STR, +46 STA", 1, true), joined)
+    assert.is_truthy(joined:find("Auction house", 1, true), joined)
+  end)
 end)

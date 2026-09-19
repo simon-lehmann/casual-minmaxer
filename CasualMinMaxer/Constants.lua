@@ -54,12 +54,12 @@ C.FLAG_PROFESSION = 256 -- equipping requires the crafting profession at the K s
 C.TIER = {
   minutesPerQuest = 10, groupOverhead = 15, travel = 15, trashRun = 45, vendorWalk = 5,
   craftOwn = 20, craftOther = 30, lotteryBelowPct = 15, namedMinutes = 30, rareMinutes = 30,
-  badgeGrind = 180, honorGrind = 240, arenaGrind = 900, repPerRank = 180,
+  badgeGrind = 180, honorGrind = 240, arenaGrind = 900, repPerRank = 180, auction = 10,
 }
 
 -- Source-type filter key for a decoded source: vendors are split by currency (§6.4).
 -- V gold, E badges, H honor / PvP tokens, A arena, F reputation; every other code is its own key.
-C.SOURCE_FILTER_KEYS = { "Q", "B", "R", "N", "T", "G", "V", "E", "H", "A", "F", "K", "W" }
+C.SOURCE_FILTER_KEYS = { "Q", "B", "R", "N", "T", "G", "V", "E", "H", "A", "F", "K", "S", "W" }
 function C.SourceFilterKey(src)
   if src.t == "V" then
     local m = src.mode
@@ -70,7 +70,7 @@ function C.SourceFilterKey(src)
 end
 function C.DefaultSourceFilters()
   local out = {}
-  for _, k in ipairs(C.SOURCE_FILTER_KEYS) do out[k] = (k ~= "W" and k ~= "A") end
+  for _, k in ipairs(C.SOURCE_FILTER_KEYS) do out[k] = (k ~= "A") end
   return out
 end
 -- Item RequiredReputationRank (4 friendly .. 7 exalted) -> client standingId (5 friendly .. 8 exalted)

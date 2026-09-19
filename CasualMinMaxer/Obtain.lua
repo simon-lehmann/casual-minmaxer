@@ -92,7 +92,7 @@ function O.SourceUsable(src, player, opts)
     local obj = Data.Object(src.object)
     if obj and Data.Dungeon(obj.map) then return dungeonUsable(obj.map, player, opts) end
     return true
-  elseif t == "V" or t == "K" or t == "W" then
+  elseif t == "V" or t == "K" or t == "W" or t == "S" then
     -- reputation is not a gate (§6.4): rep vendors get a time penalty per missing rank instead
     return true
   end
@@ -221,6 +221,8 @@ function O.EvaluateSource(src, player, opts) -- luacheck: ignore 212/opts
     local text = string.format("Trash, %s", fmtPct(pct))
     if d then text = text .. ", " .. d.name end
     return { tier = 4, minutes = T.trashRun / (pct / 100), text = text, group = true, zone = d and d.zone, src = src, map = src.map }
+  elseif t == "S" then
+    return { tier = 5, minutes = T.auction, text = "Auction house", group = false, src = src }
   elseif t == "W" then
     local pct = math.max(src.pct or 0, 0.01)
     return { tier = 4, minutes = T.namedMinutes / (pct / 100), text = string.format("World drop, %s", fmtPct(pct)),

@@ -69,7 +69,7 @@ describe("real data pack", function()
     collectgarbage("collect")
     local usedMB = (collectgarbage("count") - before) / 1024
     assert.same({}, bad)
-    assert.is_true(usedMB < 12, "decoded data uses " .. usedMB .. " MB")
+    assert.is_true(usedMB < 14, "decoded data uses " .. usedMB .. " MB")
   end)
 
   it("gives a level 62 Arms warrior a believable upgrade list in every slot", function()
@@ -83,19 +83,26 @@ describe("real data pack", function()
       assert.is_true(#rows >= 10, slot .. " has only " .. #rows .. " upgrades for an empty slot")
       local sawGuaranteed = false
       -- currency vendors (badges / honor / arena) cost hours: never in the top 5.
-      -- Gold vendors may lead an empty slot (a 30 g weapon is a legit quick upgrade), so guaranteed
-      -- quest / own-profession items are only required within the top 10.
-      for i = 1, math.min(10, #rows) do
+      -- Gold vendors and auction-house suffix greens may lead an empty slot (a 30 g weapon or a
+      -- "of the Bear" green is a legit quick upgrade), so guaranteed quest / own-profession items are
+      -- only required within the top 15.
+      for i = 1, math.min(5, #rows) do
         local src = rows[i].obtain.src
         local mode = src.t == "V" and src.mode or nil
-        if i <= 5 then
-          assert.is_true(mode ~= "E" and mode ~= "H" and mode ~= "A",
-            slot .. " top 5 contains a currency vendor item: " .. rows[i].item.name)
+        assert.is_true(mode ~= "E" and mode ~= "H" and mode ~= "A",
+          slot .. " top 5 contains a currency vendor item: " .. rows[i].item.name)
+      end
+      -- ignoring auction-house suffix rows, a guaranteed item must sit within the top 10
+      local seen = 0
+      for _, row in ipairs(rows) do
+        if not row.suffix then
+          seen = seen + 1
+          if row.tier <= 2 then sawGuaranteed = true end
+          if seen >= 10 then break end
         end
-        if rows[i].tier <= 2 then sawGuaranteed = true end
       end
       if needGuaranteed[slot] then
-        assert.is_true(sawGuaranteed, slot .. " top 10 has no guaranteed (tier 1/2) item")
+        assert.is_true(sawGuaranteed, slot .. " top 10 (without auction-house rows) has no guaranteed (tier 1/2) item")
       end
       for _, row in ipairs(rows) do
         assert.is_true(#row.item.src > 0, "source-less item listed: " .. row.item.name)
@@ -224,8 +231,10 @@ describe("real data pack", function()
     local player = CMM.Player.Get()
     local first = CMM.Query.Run("HEAD", player, opts)
     assert.is_true(#first.rows > 0)
-    local best = first.rows[1]
-    -- equip the best head item
+    local best
+    for _, r in ipairs(first.rows) do if not r.suffix then best = r break end end
+    assert.is_not_nil(best)
+    -- equip the best non-suffix head item (the stub's inventory links carry no suffix id)
     wow.player.equipped[1] = best.id
     CMM.Player.Refresh()
     CMM.Query.Invalidate()
@@ -245,5 +254,39 @@ describe("real data pack", function()
     runAll(CMM, defaultOpts())
     local dt = os.clock() - t0
     assert.is_true(dt < 3, "15-slot sweep took " .. dt .. " s (cold, all decoding included)")
+  end)
+
+  it("lists auction-house random-suffix greens with real stats for a level 62 Arms warrior", function()
+    local CMM = setup({ level = 62, class = "Warrior", classToken = "WARRIOR", classId = 1,
+      faction = "Alliance", race = "Human", raceToken = "Human",
+      talents = { { "Arms", 40 }, { "Fury", 13 }, { "Protection", 0 } }, zone = "Zangarmarsh" })
+    local results = runAll(CMM, defaultOpts())
+    local ahRows, perBase = 0, {}
+    for _, slot in ipairs({ "CHEST", "LEGS" }) do
+      for _, row in ipairs(results[slot].rows) do
+        if row.suffix then
+          local hasS = false
+          for _, src in ipairs(row.item.src) do if src.t == "S" then hasS = true end end
+          if hasS then
+            ahRows = ahRows + 1
+            assert.equals("Auction house", row.obtain.text, row.item.name)
+          end
+          assert.is_truthy(row.item.name:find(" of ", 1, true), row.item.name)
+          assert.is_truthy(next(row.item.suffixStats), "empty suffix stats: " .. row.item.name)
+          assert.is_truthy(row.link and row.link:match("^item:%d+:0:0:0:0:0:%-?%d+$"))
+          perBase[row.id] = (perBase[row.id] or 0) + 1
+          assert.is_true(perBase[row.id] <= CMM.Query.MAX_SUFFIX_ROWS, "too many suffix rows for " .. row.item.name)
+        end
+      end
+    end
+    assert.is_true(ahRows >= 5, "expected auction-house rows, got " .. ahRows)
+    -- an equipped green "of the Bear" is scored from base + suffix
+    local anyBase
+    for _, row in ipairs(results.CHEST.rows) do if row.suffix and row.suffix < 0 then anyBase = row break end end
+    assert.is_not_nil(anyBase)
+    local ctx = { level = 62, weights = CMM.Core.ActiveWeights(), class = "WARRIOR", spec = "ARMS", slotKey = "CHEST" }
+    local withSuffix = CMM.Scoring.ScoreEquippedId(anyBase.id, "CHEST", ctx, anyBase.link .. ":0")
+    local plain = CMM.Scoring.ScoreEquippedId(anyBase.id, "CHEST", ctx, "item:" .. anyBase.id)
+    assert.is_true(withSuffix > plain)
   end)
 end)

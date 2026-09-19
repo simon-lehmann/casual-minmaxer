@@ -1,4 +1,4 @@
-## Interface: 20505
+## Interface: 20506
 ## Title: Casual MinMaxer Data
 ## Notes: Item, quest and dungeon data for Casual MinMaxer (generated from CMaNGOS TBC-DB, GPL-3).
 ## Author: Simon Lehmann
@@ -46,3 +46,5 @@ Dungeons.lua
 Objects.lua
 Zones.lua
 Specials.lua
+Random.lua
+SocketBonus.lua

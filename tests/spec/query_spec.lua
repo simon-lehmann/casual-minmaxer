@@ -239,7 +239,7 @@ describe("Query", function()
     assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.E)
     assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.H)
     assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.F)
-    assert.is_false(CMM.Core.CHAR_DEFAULTS.filters.sources.W)
+    assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.W)
   end)
 
   it("never lists an item without sources (raid loot shipped for equipped scoring)", function()

@@ -135,9 +135,25 @@ end
 
 -- Score an equipped item id: data pack first, client GetItemStats (full link, so random-suffix stats
 -- count) plus tooltip-scanned equip effects as fallback.
+-- item:id:ench:gem1:gem2:gem3:gem4:suffix:unique -> signed suffix id (0 when absent)
+function S.SuffixFromLink(link)
+  if type(link) ~= "string" then return 0 end
+  local suffix = link:match("item:%-?%d+:%-?%d*:%-?%d*:%-?%d*:%-?%d*:%-?%d*:(%-?%d+)")
+  return tonumber(suffix) or 0
+end
+
 function S.ScoreEquippedId(id, slotKey, ctx, link)
   if not id then return 0, nil end
   local item = CMM.Data.Item(id)
+  local suffix = S.SuffixFromLink(link)
+  if item and suffix ~= 0 then
+    local virtual = CMM.Data.WithSuffix(item, suffix)
+    if virtual then
+      item = virtual
+    else
+      item = nil -- unknown suffix: fall back to the client's stats for the full link
+    end
+  end
   if item then
     local c = ctx
     if ctx.slotKey ~= slotKey then

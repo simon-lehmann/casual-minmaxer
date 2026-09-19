@@ -379,5 +379,7 @@ W.SOCKET_BONUS = {
   [1585] = { STA = 4 },               -- +4 Stamina: Adamantite Breastplate, Fel Leather Leggings, Blastguard Pants
 }
 function W.SocketBonus(enchantId)
+  local fromData = CMM.Data and CMM.Data.SocketBonus and CMM.Data.SocketBonus(enchantId)
+  if fromData then return fromData end
   return W.SOCKET_BONUS[enchantId]
 end

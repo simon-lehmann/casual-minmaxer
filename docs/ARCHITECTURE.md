@@ -110,7 +110,7 @@ The data addon fills the global `CasualMinMaxer_Data` (short: `D`). It is `LoadO
 strings are `;`-separated fields; lists inside a field use `,`; key-value lists use `KEY:value`. Name and
 title fields never contain `;` or `|` (the pipeline strips them); they may contain `,` and `:`.
 
-### 4.1 Items — `D.items[itemId] = "name;inv;cls;sub;q;ilvl;req;classmask;flags;stats;sockets;sbonus;phase"`
+### 4.1 Items — `D.items[itemId] = "name;inv;cls;sub;q;ilvl;req;classmask;flags;stats;sockets;sbonus;phase;rand"`
 
 | # | Field | Values |
 | --- | --- | --- |
@@ -127,6 +127,7 @@ title fields never contain `;` or `|` (the pipeline strips them); they may conta
 | 11 | sockets | letters in socket order: R red, Y yellow, B blue, M meta; empty if none |
 | 12 | sbonus | socket bonus enchantment id, 0 if none |
 | 13 | phase | 1–5 content phase in which the item becomes obtainable (see §7) |
+| 14 | rand | random-enchant pool: comma list of ids, NEGATIVE = ItemRandomSuffix id (TBC scaling suffix, §4.11), POSITIVE = ItemRandomProperties id (fixed vanilla property). Empty for normal items; 13-field records parse with rand empty. `stats` holds only the base item (armor, DPS) |
 
 Items are split by slot group into `Items_<Group>.lua`, groups: Head, Neck, Shoulder, Back, Chest,
 Wrist, Hands, Waist, Legs, Feet, Finger, Trinket, Weapon (inv 13/17/21/22), OffhandArmor (14/23),
@@ -144,6 +145,7 @@ Ranged (15/25/26/28). The split is for file size only; every file writes into `D
 | G | `G<goEntry>:<pct>` | chest / game object loot |
 | V | `V<price>:<mode>` | vendor. price in copper; mode `0` = gold, `E` = Badge of Justice vendor, `H` = honor / battleground marks / PvP tokens (Halaa, Spirit Shards, Apexis), `A` = arena points (Merciless/Vengeful/Brutal Gladiator's), `F<factionId>-<rank>` = reputation vendor (rank 4 friendly .. 7 exalted). Rep wins over the others; gold wins over extended cost when any vendor sells the item for gold. Tier-token vendor items (raid loot in disguise) are dropped. Classification lives in overrides/vendors.json |
 | K | `K<skillLine>:<skill>` | crafted; skill line 171 Alchemy, 164 Blacksmithing, 333 Enchanting, 202 Engineering, 165 Leatherworking, 197 Tailoring, 755 Jewelcrafting |
+| S | `S` | auction house: the item is a random-enchant item that is not BoP, so any suffix can be bought. Always paired with at least one drop source |
 | W | `W<pct>` | world drop: a reference loot table shared by ≥ 5 loot owners outside one instance, outdoor chests, or ≥ 5 different creatures; pct = highest single-mob chance. N sources are capped at the 5 best creatures |
 
 Decoded shape (`Data.ParseSources`, also `item.src`, parsed on access): `{t="Q", quest=id}`,
@@ -151,7 +153,7 @@ Decoded shape (`Data.ParseSources`, also `item.src`, parsed on access): `{t="Q",
 `{t="V", price=copper, mode="0"|"E"|"F", faction=id, rank=n}`, `{t="K", skillLine=id, skill=n}`, `{t="W", pct=n}`.
 
 An item with no source is not shipped, except raid-only items: they are shipped without a `D.src` entry so an
-equipped raid item is scored from pack stats. `Query` never lists an item that has no sources. Sources are sorted best-first by the pipeline (Q, K, V, B, G, R, N, T, W)
+equipped raid item is scored from pack stats. `Query` never lists an item that has no sources. Sources are sorted best-first by the pipeline (Q, K, V, S, B, G, R, N, T, W)
 but the addon recomputes the best source per character.
 
 ### 4.3 Quests — `D.quests[questId] = "title;minLevel;questLevel;races;classes;zone;type;prev;next;excl;choice;fixed"`
@@ -190,6 +192,17 @@ prefers `C_Map.GetAreaInfo(areaId)` and falls back to this table.
 
 ### 4.9 Meta — `D.meta = { version=, built=, dbVersion=, items=, quests=, phases=5 }`
 
+### 4.11 Random enchants and socket bonuses (Random.lua, SocketBonus.lua)
+
+`D.rsuffix[id] = "name;KEY:allocPct,..."` for ItemRandomSuffix: stat value on an item =
+floor(allocPct × points / 10000) with points = `D.randprop[ilvl]` = `"e0,e1,e2,e3,e4;s0,..;g0,.."`
+(RandPropPoints: epic / superior / good columns, group by inventory type: 0 head, chest, robe, legs,
+2H; 1 shoulder, waist, feet, hands, trinket; 2 neck, wrist, finger, back, shield, held; 3 1H, MH, OH;
+4 ranged). `D.rprop[id] = "name;KEY:value,..."` for ItemRandomProperties (fixed values).
+`D.sbonus[enchantId] = "KEY:value,..."` = real socket bonus stats for every socket bonus id used by a
+shipped item; `Weights.SocketBonus` prefers it over the hand table. Values come from the client
+DB2 tables in pipeline/dbc/ (see its README).
+
 ### 4.10 Specials — `D.specials[itemId] = "AP:90"` stat-equivalents added to the item's stats
 before scoring, from overrides/specials.json. Items with a special entry drop flag 16.
 
@@ -206,7 +219,7 @@ CMM.Constants.SLOT_KEYS            -- ordered list of slot keys (§3)
 CMM.Constants.INV_TO_SLOT[inv]     -- inventory type -> slot key (13 -> "MAINHAND"; Query adds OFFHAND for dual wielders)
 CMM.Constants.STAT_KEYS            -- ordered list of §2 keys
 CMM.Constants.RATING_KEYS          -- set of rating keys
-CMM.Constants.TIER                 -- { minutesPerQuest=10, groupOverhead=15, travel=15, trashRun=45, vendorWalk=5, craftOwn=20, craftOther=30, lotteryBelowPct=15, badgeGrind=180, honorGrind=240, arenaGrind=900, repPerRank=180 }
+CMM.Constants.TIER                 -- { minutesPerQuest=10, groupOverhead=15, travel=15, trashRun=45, vendorWalk=5, craftOwn=20, craftOther=30, lotteryBelowPct=15, badgeGrind=180, honorGrind=240, arenaGrind=900, repPerRank=180, auction=10 }
 
 CMM.Ratings.PerPercent(key, level) -> rating needed for 1 %
 CMM.Ratings.ToPercent(key, rating, level) -> percent
@@ -289,10 +302,15 @@ score, floor 0). Feral druids and casters have w.DPS = 0 so weapon choice follow
 5. Item phase > current phase (CharDB/DB setting).
 6. Reputation is not a gate: a reputation vendor item stays visible with a time penalty per missing rank (§6.5), so "what do I get from grinding Cenarion Expedition" stays answerable.
 7. Heroic-only sources are gated to level 70.
+Random-enchant base items (`rand` non-empty) are expanded into one virtual candidate per suffix
+(`Data.WithSuffix(item, id)`: base stats + suffix stats, `suffix = id`, name "Base of the Bear",
+`link = "item:<id>:0:0:0:0:0:<suffix>"`), scored like any item; only upgrades survive and at most the
+3 best suffixes per base item are listed. An equipped item whose link carries a suffix id is scored as
+base + suffix from the pack when both are known, else from the client's stats.
 Result rows with the same name, stat signature and source text (faction twins) are collapsed to the first.
 Filter (not gate): source type, tier, dungeon, zone, group, armor type, special, sidegrades. Source-type
 filter keys are the source codes, with vendor split by mode: `V` gold, `E` badges, `H` honor/tokens, `A` arena,
-`F` reputation. Defaults: all on except `W` and `A`.
+`F` reputation, `S` auction house. Defaults: all on except `A`.
 
 ### 6.5 Tiers and expected minutes
 | Tier | When | Minutes |
@@ -301,7 +319,7 @@ filter keys are the source codes, with vendor split by mode: `V` gold, `E` badge
 | 2 guaranteed group | dungeon / group / heroic quest (type 81, 1, 85) | 15 + remaining chain × 10 |
 | 3 farmable drop | boss pct ≥ 15, chest pct ≥ 15 | (15 + t[boss]) / (pct/100) |
 | 4 lottery | boss/chest pct < 15, rare spawn, named mob, trash, world drop | boss formula; rare: max(respawn, 30) / p; named/world: 30 / p; trash: 45 / p |
-| 5 buyable | vendor, crafted by another profession, BoE listed only when the filter allows | gold vendor 5; badge vendor 180; honor / token vendor 240; arena 900; reputation vendor 5 when the standing is met, else 180 × missing ranks (unknown standing counts as neutral); craft 30 |
+| 5 buyable | vendor, auction house (S), crafted by another profession, BoE listed only when the filter allows | gold vendor 5; auction house TIER.auction 10 ("Auction house"); badge vendor 180; honor / token vendor 240; arena 900; reputation vendor 5 when the standing is met, else 180 × missing ranks (unknown standing counts as neutral); craft 30 |
 
 Best source = lowest expected minutes among the character's usable sources; tier = that source's
 tier. Efficiency = gain / (minutes / 60). Value over time = efficiency × (lastsUntil − level + 1).

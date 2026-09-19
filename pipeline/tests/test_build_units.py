@@ -256,3 +256,32 @@ def test_vendor_mode_classification():
     assert vm(dict(item, name="Gladiator's Plate Helm", itemset=1, ItemLevel=123), [(999, 5)], badge, raid, prefixes, tokens) == "H"
     assert vm(dict(item, name="Warbringer Chestguard", itemset=1, ItemLevel=120), [(999, 5)], badge, raid, prefixes, tokens) is None
     assert vm(dict(item, RequiredReputationFaction=942, RequiredReputationRank=6), [(999, 5)], badge, raid, prefixes, tokens) == "F942-6"
+
+
+def test_decode_enchant_flat_stat_and_spell():
+    spells = {7471: {"Effect1": 6, "EffectApplyAuraName1": 29, "EffectBasePoints1": 0, "EffectDieSides1": 1,
+                     "EffectMiscValue1": 1}}  # +1 Agility (MOD_STAT agility)
+    flat = {"Effect_0": "5", "EffectArg_0": "7", "EffectPointsMin_0": "0", "Effect_1": "0", "EffectArg_1": "0",
+            "EffectPointsMin_1": "0", "Effect_2": "0", "EffectArg_2": "0", "EffectPointsMin_2": "0"}
+    stats, keys = build.decode_enchant(flat, spells)
+    assert stats == {} and keys == ["STA"]  # scaling enchant: key only
+    fixed = dict(flat, EffectPointsMin_0="4")
+    assert build.decode_enchant(fixed, spells)[0] == {"STA": 4.0}
+    spell = dict(flat, Effect_0="3", EffectArg_0="7471")
+    assert build.decode_enchant(spell, spells) == ({"AGI": 1.0}, ["AGI"])
+    assert build.decode_enchant(dict(flat, Effect_0="4"), spells) == ({}, [])  # resistance ignored
+
+
+def test_rpp_points_and_scaling():
+    rpp = {60: {"Epic_0": "44", "Superior_0": "34", "Good_0": "26", "Good_1": "20", "Good_2": "15", "Good_3": "11", "Good_4": "8"}}
+    assert build.rpp_points(rpp, 60, 2, 5) == 26     # uncommon chest
+    assert build.rpp_points(rpp, 60, 3, 1) == 34     # rare head
+    assert build.rpp_points(rpp, 60, 4, 17) == 44    # epic 2H
+    assert build.rpp_points(rpp, 60, 2, 11) == 15    # ring -> group 2
+    assert build.rpp_points(rpp, 61, 2, 5) == 0      # unknown ilvl
+    assert build.scaled_suffix_stats({"STA": 10000, "STR": 6666}, 26) == {"STA": 26.0, "STR": 17.0}
+    assert build.scaled_suffix_stats({"STA": 100}, 26) == {}
+
+
+def test_sort_sources_places_auction_after_vendor():
+    assert build.sort_sources(["W0.5", "S", "V100:0", "B1:20"]) == ["V100:0", "S", "B1:20", "W0.5"]

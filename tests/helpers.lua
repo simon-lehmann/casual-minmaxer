@@ -117,6 +117,7 @@ function H.UseData(fillFn)
     local D = {}
     _G.CasualMinMaxer_Data = D
     D.items, D.src, D.quests, D.npcs, D.bosses, D.dungeons, D.objects, D.zones, D.specials = {}, {}, {}, {}, {}, {}, {}, {}, {}
+    D.rsuffix, D.rprop, D.randprop, D.sbonus = {}, {}, {}, {}
     D.meta = { version = "test", built = "2026-09-19", items = 0, quests = 0, phases = 5 }
     fillFn(D)
   end
