@@ -146,6 +146,10 @@ Ranged (15/25/26/28). The split is for file size only; every file writes into `D
 | K | `K<skillLine>:<skill>` | crafted; skill line 171 Alchemy, 164 Blacksmithing, 333 Enchanting, 202 Engineering, 165 Leatherworking, 197 Tailoring, 755 Jewelcrafting |
 | W | `W<pct>` | world drop: a reference loot table shared by ≥ 5 loot owners outside one instance, outdoor chests, or ≥ 5 different creatures; pct = highest single-mob chance. N sources are capped at the 5 best creatures |
 
+Decoded shape (`Data.ParseSources`, also `item.src`, parsed on access): `{t="Q", quest=id}`,
+`{t="B"|"R"|"N", npc=entry, pct=n}`, `{t="T", map=id, pct=n}`, `{t="G", object=entry, pct=n}`,
+`{t="V", price=copper, mode="0"|"E"|"F", faction=id, rank=n}`, `{t="K", skillLine=id, skill=n}`, `{t="W", pct=n}`.
+
 An item with no source is not shipped. Sources are sorted best-first by the pipeline (Q, K, V, B, G, R, N, T, W)
 but the addon recomputes the best source per character.
 

@@ -89,11 +89,11 @@ function Rows.DetailLines(row, player)
   end
   local t = s.t
   if t == "Q" then
-    local chain = Rows.QuestChain(s.id)
-    local q = call(CMM.Data, "Quest", s.id)
+    local chain = Rows.QuestChain(s.quest)
+    local q = call(CMM.Data, "Quest", s.quest)
     local zone = q and zoneName(q.zone)
     add(string.format("%s%s", L["Quest chain"], zone and (" - " .. zone) or ""), 1, 0.82, 0)
-    if #chain == 0 and q then chain = { { id = s.id, quest = q } } end
+    if #chain == 0 and q then chain = { { id = s.quest, quest = q } } end
     for _, step in ipairs(chain) do
       local done = call(CMM.Player, "QuestDone", step.id)
       local qq = step.quest
@@ -125,7 +125,7 @@ function Rows.DetailLines(row, player)
     add(L["Dungeon trash"], 1, 0.82, 0)
     add(string.format("%s - %.1f%% %s", mapName(s.map), s.pct or 0, L["per mob"]), 1, 1, 1)
   elseif t == "G" then
-    local obj = call(CMM.Data, "Object", s.go)
+    local obj = call(CMM.Data, "Object", s.object)
     add(L["Chest"], 1, 0.82, 0)
     add(string.format("%s - %s - %.1f%%", obj and obj.name or "?", obj and mapName(obj.map) or "", s.pct or 0), 1, 1, 1)
   elseif t == "V" then
@@ -155,8 +155,8 @@ function Rows.DetailLines(row, player)
     for _, src in ipairs(item.src) do
       if src ~= s then
         if src.t == "Q" then
-          local q = call(CMM.Data, "Quest", src.id)
-          parts[#parts + 1] = L["Quest"] .. " " .. (q and q.title or tostring(src.id))
+          local q = call(CMM.Data, "Quest", src.quest)
+          parts[#parts + 1] = L["Quest"] .. " " .. (q and q.title or tostring(src.quest))
         elseif src.t == "B" or src.t == "R" or src.t == "N" then
           local npc = call(CMM.Data, "Npc", src.npc)
           parts[#parts + 1] = string.format("%s %.0f%%", npc and npc.name or ("NPC " .. tostring(src.npc)), src.pct or 0)
@@ -201,7 +201,7 @@ function Rows.SourceZone(row)
   local s = o and o.src
   if not s then return nil end
   if s.t == "Q" then
-    local q = call(CMM.Data, "Quest", s.id)
+    local q = call(CMM.Data, "Quest", s.quest)
     return q and q.zone ~= 0 and q.zone or nil
   elseif s.t == "B" then
     local boss = call(CMM.Data, "Boss", s.npc)

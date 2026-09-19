@@ -15,7 +15,7 @@ read_globals = {
   -- WoW API used by the addon
   "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip", "GameFontNormal", "GameFontHighlight",
   "GameFontNormalSmall", "GameFontHighlightSmall", "GameFontDisableSmall", "GameFontNormalLarge",
-  "ChatFontNormal", "NumberFontNormal", "CreateFont", "SlashCmdList", "DEFAULT_CHAT_FRAME", "ChatFrame1",
+  "ChatFontNormal", "NumberFontNormal", "CreateFont", "DEFAULT_CHAT_FRAME", "ChatFrame1",
   "GetBuildInfo", "GetLocale", "GetAddOnMetadata", "C_AddOns", "LoadAddOn", "IsAddOnLoaded", "GetAddOnInfo",
   "UnitClass", "UnitLevel", "UnitFactionGroup", "UnitRace", "UnitName", "GetRealmName", "UnitClassBase",
   "GetInventoryItemLink", "GetInventoryItemID", "GetInventorySlotInfo", "GetItemInfo", "GetItemInfoInstant",

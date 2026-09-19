@@ -143,6 +143,13 @@ function Data.Meta()
   return D and D.meta or {}
 end
 
+local srcMeta = {
+  __index = function(item, key)
+    if key == "src" then return Data.ParseSources(D.src[item.id]) end
+    return nil
+  end,
+}
+
 function Data.Item(id)
   if not D then return nil end
   id = tonumber(id)
@@ -169,9 +176,11 @@ function Data.Item(id)
     phase = tonumber(f[13]) or 1,
   }
   item.slot = C.INV_TO_SLOT[item.inv]
-  item.src = Data.ParseSources(D.src[id])
   local special = D.specials[id]
   if special and special ~= "" then item.special = parseStats(special) end
+  -- Sources are parsed on access and not cached: a full 15-slot sweep decodes every item, and keeping
+  -- ~2 source tables per item would add ~3 MB. Parsing a few short tokens per candidate is cheap.
+  setmetatable(item, srcMeta)
   itemCache[id] = item
   return item
 end

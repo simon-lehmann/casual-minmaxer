@@ -62,9 +62,29 @@ function H.ResetPlayer()
   p.equipped, p.completedQuests, p.factions = {}, {}, {}
 end
 
+-- Deterministic weights used by the logic specs (independent of the shipped Weights.lua content).
+-- Only Warrior/Arms exists so spec-fallback tests stay meaningful.
+H.TEST_WEIGHTS = {
+  WARRIOR = {
+    ARMS = { name = "Arms", role = "melee", tabIndex = 1, phases = {
+      { STR = 1, AGI = 0.6, STA = 0.7, AP = 0.5, CRIT = 12, HIT = 10, DPS = 4, SPEEDPREF = 1, ARMOR = 0.02 },
+      { STR = 1, AGI = 0.6, STA = 0.6, AP = 0.5, CRIT = 12, HIT = 10, DPS = 4, SPEEDPREF = 1, ARMOR = 0.02 },
+      { STR = 1, AGI = 0.6, STA = 0.5, AP = 0.5, CRIT = 12, HIT = 10, DPS = 4.5, SPEEDPREF = 1, ARMOR = 0.02 },
+      { STR = 1, AGI = 0.6, STA = 0.45, AP = 0.5, CRIT = 14, HIT = 12, DPS = 5, SPEEDPREF = 1, ARMOR = 0.01, EXP = 16 },
+      { STR = 1, AGI = 0.6, STA = 0.3, AP = 0.5, CRIT = 16, HIT = 16, DPS = 5.5, SPEEDPREF = 1, ARMOR = 0.01, EXP = 20, ARP = 0.1 },
+    } },
+  },
+}
+
 function H.Boot(opts)
   opts = opts or {}
   local ns = H.LoadAddon(opts)
+  if not opts.realWeights then
+    ns.Weights.DEFAULTS = CopyTable(H.TEST_WEIGHTS)
+    ns.Weights.GEMS = {}
+    ns.Weights.SOCKET_BONUS = {}
+    ns.Specials.TABLE = {}
+  end
   H.ResetPlayer()
   H.LoadFixtureData()
   if opts.player then for k, v in pairs(opts.player) do H.wow.player[k] = v end end

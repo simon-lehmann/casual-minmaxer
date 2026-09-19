@@ -46,7 +46,7 @@ local function runAll(CMM, opts)
   return out
 end
 
-local function defaultOpts(CMM)
+local function defaultOpts()
   return { filters = { sources = nil, tiers = { [1] = true, [2] = true, [3] = true, [4] = true, [5] = true },
     armor = "all", special = true, sidegrades = false }, sort = "eff", lookahead = 2, showSpecial = true }
 end
@@ -63,7 +63,7 @@ describe("real data pack", function()
       local it = CMM.Data.Item(id)
       if not it or #it.src == 0 or not CMM.Constants.INV_TO_SLOT[it.inv] then bad[#bad + 1] = id end
       for key in pairs(it.stats) do
-        if not CMM.Constants.STAT_KEY_SET[key] then bad[#bad + 1] = id .. ":" .. key end
+        if not CMM.Constants.STAT_SET[key] then bad[#bad + 1] = id .. ":" .. key end
       end
     end
     collectgarbage("collect")
@@ -76,7 +76,7 @@ describe("real data pack", function()
     local CMM = setup({ level = 62, class = "Warrior", classToken = "WARRIOR", classId = 1,
       faction = "Alliance", race = "Human", raceToken = "Human",
       talents = { { "Arms", 40 }, { "Fury", 13 }, { "Protection", 0 } }, zone = "Hellfire Peninsula" })
-    local results = runAll(CMM, defaultOpts(CMM))
+    local results = runAll(CMM, defaultOpts())
     for _, slot in ipairs(SLOTS) do
       local rows = results[slot].rows
       assert.is_true(#rows >= 10, slot .. " has only " .. #rows .. " upgrades for an empty slot")
@@ -114,13 +114,13 @@ describe("real data pack", function()
     local CMM = setup({ level = 62, class = "Shaman", classToken = "SHAMAN", classId = 7,
       faction = "Horde", race = "Orc", raceToken = "Orc",
       talents = { { "Elemental", 10 }, { "Enhancement", 43 }, { "Restoration", 0 } }, zone = "Zangarmarsh" })
-    local results = runAll(CMM, defaultOpts(CMM))
+    local results = runAll(CMM, defaultOpts())
     local D = _G.CasualMinMaxer_Data
     for _, slot in ipairs(SLOTS) do
       for _, row in ipairs(results[slot].rows) do
         assert.is_true(bit.band(row.item.flags, 64) == 0, "Alliance-only item for Horde: " .. row.item.name)
         if row.obtain.src.t == "Q" then
-          local q = CMM.Data.Quest(row.obtain.src.id)
+          local q = CMM.Data.Quest(row.obtain.src.quest)
           assert.is_not_nil(q)
           assert.is_true(q.races ~= "A", "Alliance quest " .. q.title .. " for Horde: " .. row.item.name)
         end
@@ -136,7 +136,7 @@ describe("real data pack", function()
       talents = { { "Discipline", 0 }, { "Holy", 10 }, { "Shadow", 43 } }, zone = "Zangarmarsh" })
     local player = CMM.Player.Get()
     -- Lost in Action (9738) rewards Cenarion Ring of Casting (25541); chain prev = 9876
-    local ok = CMM.Obtain.Gate(CMM.Data.Item(25541), player, defaultOpts(CMM))
+    local ok = CMM.Obtain.Gate(CMM.Data.Item(25541), player, defaultOpts())
     assert.is_true(ok)
     local steps = CMM.Obtain.ChainRemaining(9738, player)
     assert.is_true(steps >= 2, "chain should have at least 2 steps, got " .. tostring(steps))
@@ -147,7 +147,7 @@ describe("real data pack", function()
     wow.player.completedQuests[9738] = true
     CMM.Player.Refresh()
     player = CMM.Player.Get()
-    local gated = CMM.Obtain.Gate(CMM.Data.Item(25541), player, defaultOpts(CMM))
+    local gated = CMM.Obtain.Gate(CMM.Data.Item(25541), player, defaultOpts())
     assert.is_false(gated)
   end)
 
@@ -156,7 +156,7 @@ describe("real data pack", function()
       faction = "Horde", race = "Tauren", raceToken = "Tauren",
       talents = { { "Balance", 0 }, { "Feral", 0 }, { "Restoration", 54 } }, zone = "Zangarmarsh" })
     local player = CMM.Player.Get()
-    local byBoss = CMM.Query.RunDungeon(547, player, defaultOpts(CMM))
+    local byBoss = CMM.Query.RunDungeon(547, player, defaultOpts())
     local total = 0
     for _, entry in ipairs(CMM.Data.Dungeon(547).bosses) do
       local rows = byBoss[entry]
@@ -177,7 +177,7 @@ describe("real data pack", function()
     local CMM = setup({ level = 70, class = "Rogue", classToken = "ROGUE", classId = 4,
       faction = "Alliance", race = "Gnome", raceToken = "Gnome",
       talents = { { "Assassination", 20 }, { "Combat", 41 }, { "Subtlety", 0 } }, zone = "Shattrath City" })
-    local results = runAll(CMM, defaultOpts(CMM))
+    local results = runAll(CMM, defaultOpts())
     local heroic = 0
     for _, slot in ipairs(SLOTS) do
       for _, row in ipairs(results[slot].rows) do
@@ -188,7 +188,7 @@ describe("real data pack", function()
     wow.player.level = 62
     CMM.Player.Refresh()
     CMM.Query.Invalidate()
-    results = runAll(CMM, defaultOpts(CMM))
+    results = runAll(CMM, defaultOpts())
     for _, slot in ipairs(SLOTS) do
       for _, row in ipairs(results[slot].rows) do
         assert.is_true(bit.band(row.item.flags, 32) == 0, "heroic-only item at 62: " .. row.item.name)
@@ -200,7 +200,7 @@ describe("real data pack", function()
     local CMM = setup({ level = 62, class = "Warrior", classToken = "WARRIOR", classId = 1,
       faction = "Alliance", race = "Human", raceToken = "Human",
       talents = { { "Arms", 40 }, { "Fury", 13 }, { "Protection", 0 } }, zone = "Zangarmarsh" })
-    local opts = defaultOpts(CMM)
+    local opts = defaultOpts()
     local player = CMM.Player.Get()
     local first = CMM.Query.Run("HEAD", player, opts)
     assert.is_true(#first.rows > 0)
@@ -222,7 +222,7 @@ describe("real data pack", function()
       faction = "Horde", race = "Undead", raceToken = "Scourge",
       talents = { { "Arcane", 0 }, { "Fire", 36 }, { "Frost", 0 } }, zone = "Tanaris" })
     local t0 = os.clock()
-    runAll(CMM, defaultOpts(CMM))
+    runAll(CMM, defaultOpts())
     local dt = os.clock() - t0
     assert.is_true(dt < 3, "15-slot sweep took " .. dt .. " s (cold, all decoding included)")
   end)
