@@ -21,6 +21,8 @@ Fully offline. All data ships with the addon.
 - Tooltip line with score and gain on any item.
 - Weights editor per spec, Pawn string import/export, level-phase aware defaults for all 27 specs.
 - Hard gates: faction, race, class, completed quests, level, content phase, reputation.
+- Random-suffix greens ("of the Bear") from the auction house, one row per useful suffix with exact stats
+  for the item level, and BoE world drops: the fastest way to gear up.
 - Filters: source type, tier, dungeon, zone, group needed, armor type, lookahead, sidegrades.
 - Export string for the companion website.
 

@@ -44,6 +44,7 @@ For each character, open every slot and sanity-check the top 5:
 - No quest you already completed. No quest from the other faction.
 - Dungeon rows say the right boss and a plausible drop chance.
 - Honor, arena and badge items sit below quest and dungeon items unless the gain is huge.
+- "Auction house" rows name a suffix that really exists for that item (compare with the AH search).
 - "Lasts until" is later for higher-level items.
 
 Record wrong rows with the row's right-click → "Report wrong data" string and paste them into
@@ -52,7 +53,7 @@ an issue, with your class, spec and level.
 ## Known limits
 
 - Drop chances are emulator estimates; the tier is the reliable part.
-- Socket bonuses are inferred for the most common 39 enchant ids; the rest are estimated.
-- Random-suffix greens ("of the Bear") are not listed as candidates.
+- Random-suffix greens are listed with stats computed from the client's own tables; the tooltip of a
+  suffix row shows the base item only. Only the 3 best suffixes per base item are shown.
 - Raid loot is never recommended (design decision); raid items you wear are still scored.
 - TomTom waypoints land at the zone centre; the data pack has no coordinates.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- Random-suffix and random-property greens are listed as auction-house candidates, one row per useful
+  suffix (best 3 per base item), with stats computed from the client's ItemRandomSuffix / RandPropPoints tables.
+- Equipped random-suffix items are scored exactly from the link's suffix id.
+- Socket bonuses come from the client's SpellItemEnchantment table instead of hand estimates.
+- New source filters: Auction house (default on); World drop (BoE) now defaults to on.
+- Interface number 20506 (TBC Classic 2.5.6).
+
 ## 0.1.0 (2026-09-19)
 
 First complete build.
