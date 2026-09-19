@@ -1,0 +1,5 @@
+{
+  "_comment": "Manual data fixes. bosses: {creatureEntry: [mapId, encounterIndex, heroic]} adds or overrides a boss. sources: {itemId: [\"Q123\", \"B456:20\"]} appends sources; {itemId: null} removes the item from the pack.",
+  "bosses": {},
+  "sources": {}
+}
