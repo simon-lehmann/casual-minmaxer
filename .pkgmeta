@@ -1,0 +1,14 @@
+package-as: CasualMinMaxer
+enable-nolib-creation: no
+ignore:
+  - pipeline
+  - tests
+  - scripts
+  - docs
+  - Makefile
+  - .busted
+  - .luacheckrc
+  - .github
+move-folders:
+  CasualMinMaxer/CasualMinMaxer: CasualMinMaxer
+  CasualMinMaxer/CasualMinMaxer_Data: CasualMinMaxer_Data
