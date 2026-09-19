@@ -11,7 +11,7 @@ local SKILL_NAMES = {
   [165] = "Leatherworking", [197] = "Tailoring", [755] = "Jewelcrafting", [185] = "Cooking", [129] = "First Aid",
 }
 local RANK_NAMES = { [0] = "Normal", [1] = "Elite", [2] = "Rare", [3] = "Boss", [4] = "Rare elite" }
-local REP_NAMES = { [4] = "Neutral", [5] = "Friendly", [6] = "Honored", [7] = "Revered", [8] = "Exalted" }
+local REP_NAMES = { [4] = "Friendly", [5] = "Honored", [6] = "Revered", [7] = "Exalted" } -- §4.2 ranks
 local MAP_NAMES = { [0] = "Eastern Kingdoms", [1] = "Kalimdor", [530] = "Outland" }
 
 ---------------------------------------------------------------------------------------------------
@@ -134,7 +134,7 @@ function Rows.DetailLines(row, player)
       add(L["Sold for badges, honor or tokens"], 1, 1, 1)
     elseif s.faction then
       local fname = GetFactionInfoByID and select(1, GetFactionInfoByID(s.faction)) or ("faction " .. tostring(s.faction))
-      add(string.format("%s: %s %s", fname or "?", L["requires"], L[REP_NAMES[s.rank or 4] or "Neutral"]), 1, 1, 1)
+      add(string.format("%s: %s %s", fname or "?", L["requires"], L[REP_NAMES[s.rank or 4] or "Friendly"]), 1, 1, 1)
       add(UI.FormatMoney(s.price), 1, 1, 1)
     else
       add(UI.FormatMoney(s.price), 1, 1, 1)

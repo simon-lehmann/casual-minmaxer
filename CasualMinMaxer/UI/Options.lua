@@ -93,8 +93,12 @@ function Options.SetConstant(key, value)
 end
 
 function Options.SetSpecOverride(key)
-  UI.CharDB().specOverride = key
-  call(CMM.Query, "Invalidate")
+  if CMM.Core and CMM.Core.SetSpecOverride then
+    CMM.Core.SetSpecOverride(key) -- refreshes the player snapshot, invalidates queries, fires PLAYER_CHANGED
+  else
+    UI.CharDB().specOverride = key
+    call(CMM.Query, "Invalidate")
+  end
   if CMM.Fire then CMM.Fire("WEIGHTS_CHANGED") end
   Options.Refresh()
 end

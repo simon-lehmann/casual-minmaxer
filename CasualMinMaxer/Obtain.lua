@@ -165,12 +165,13 @@ function O.EvaluateSource(src, player, opts) -- luacheck: ignore 212/opts
       local text = kind
       if steps > 1 then text = text .. string.format(", %d steps left", steps) end
       if zoneName then text = text .. ", " .. zoneName end
-      return { tier = 2, minutes = T.groupOverhead + minutes, text = text, group = true, zone = q.zone, src = src, quest = q }
+      return { tier = 2, minutes = T.groupOverhead + minutes, text = text, group = true, zone = q.zone, src = src,
+        quest = q, steps = steps }
     end
     if travel then minutes = minutes + T.travel end
     local text = steps > 1 and string.format("Quest, %d steps left", steps) or "Quest"
     if zoneName then text = text .. ", " .. zoneName end
-    return { tier = 1, minutes = minutes, text = text, group = false, zone = q.zone, src = src, quest = q }
+    return { tier = 1, minutes = minutes, text = text, group = false, zone = q.zone, src = src, quest = q, steps = steps }
   elseif t == "B" or t == "G" then
     local pct = math.max(src.pct or 0, 0.01)
     local map, label, index

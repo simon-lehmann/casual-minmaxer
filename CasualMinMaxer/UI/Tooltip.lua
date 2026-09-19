@@ -5,17 +5,19 @@ local L = CMM.L
 local Tooltip = {}
 UI.Tooltip = Tooltip
 
-local function tooltipLink(tooltip, data)
-  local link
+-- Compat.HookItemTooltips calls fn(tooltip, itemId, link); the raw TooltipDataProcessor fallback calls fn(tooltip, data).
+local function tooltipLink(tooltip, data, link)
+  if type(link) == "string" then return link end
+  if type(data) == "number" then return "item:" .. tostring(data) end
   if tooltip and tooltip.GetItem then
     local _, l = tooltip:GetItem()
-    link = l
+    if l then return l end
   end
-  if not link and type(data) == "table" then
-    if data.hyperlink then link = data.hyperlink
-    elseif data.id then link = "item:" .. tostring(data.id) end
+  if type(data) == "table" then
+    if data.hyperlink then return data.hyperlink
+    elseif data.id then return "item:" .. tostring(data.id) end
   end
-  return link
+  return nil
 end
 
 -- Build the score line for a link; returns text or nil when the item is not scorable.
@@ -37,9 +39,9 @@ function Tooltip.Line(link)
   return text, gain
 end
 
-local function addLine(tooltip, data)
+local function addLine(tooltip, data, link)
   if not tooltip or tooltip.cmmDone then return end
-  local link = tooltipLink(tooltip, data)
+  link = tooltipLink(tooltip, data, link)
   if not link then return end
   local id = UI.ItemIdFromLink(link)
   if not id then return end

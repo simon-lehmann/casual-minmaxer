@@ -142,7 +142,7 @@ Ranged (15/25/26/28). The split is for file size only; every file writes into `D
 | N | `N<npcEntry>:<pct>` | named open-world creature drop with pct ≥ 1 (not boss, not rare) |
 | T | `T<mapId>:<pct>` | dungeon trash drop; pct = highest per-mob chance on that map |
 | G | `G<goEntry>:<pct>` | chest / game object loot |
-| V | `V<price>:<mode>` | vendor. price in copper; mode 0 = gold, E = extended cost (badges, honor, arena, tokens), `F<factionId>-<rank>` = reputation vendor (rank 4 friendly .. 7 exalted). When both rep and extended cost apply, rep wins |
+| V | `V<price>:<mode>` | vendor. price in copper; mode `0` = gold, `E` = Badge of Justice vendor, `H` = honor / battleground marks / PvP tokens (Halaa, Spirit Shards, Apexis), `A` = arena points (Merciless/Vengeful/Brutal Gladiator's), `F<factionId>-<rank>` = reputation vendor (rank 4 friendly .. 7 exalted). Rep wins over the others; gold wins over extended cost when any vendor sells the item for gold. Tier-token vendor items (raid loot in disguise) are dropped. Classification lives in overrides/vendors.json |
 | K | `K<skillLine>:<skill>` | crafted; skill line 171 Alchemy, 164 Blacksmithing, 333 Enchanting, 202 Engineering, 165 Leatherworking, 197 Tailoring, 755 Jewelcrafting |
 | W | `W<pct>` | world drop: a reference loot table shared by ≥ 5 loot owners outside one instance, outdoor chests, or ≥ 5 different creatures; pct = highest single-mob chance. N sources are capped at the 5 best creatures |
 
@@ -203,7 +203,7 @@ CMM.Constants.SLOT_KEYS            -- ordered list of slot keys (§3)
 CMM.Constants.INV_TO_SLOT[inv]     -- inventory type -> slot key (13 -> "MAINHAND"; Query adds OFFHAND for dual wielders)
 CMM.Constants.STAT_KEYS            -- ordered list of §2 keys
 CMM.Constants.RATING_KEYS          -- set of rating keys
-CMM.Constants.TIER                 -- { minutesPerQuest=10, groupOverhead=15, travel=15, trashRun=45, vendorWalk=5, craftOwn=20, craftOther=30, lotteryBelowPct=15 }
+CMM.Constants.TIER                 -- { minutesPerQuest=10, groupOverhead=15, travel=15, trashRun=45, vendorWalk=5, craftOwn=20, craftOther=30, lotteryBelowPct=15, badgeGrind=180, honorGrind=240, arenaGrind=900, repPerRank=180 }
 
 CMM.Ratings.PerPercent(key, level) -> rating needed for 1 %
 CMM.Ratings.ToPercent(key, rating, level) -> percent
@@ -230,7 +230,7 @@ CMM.Scoring.EquippedScore(slotKey, ctx, player) -> number, itemId   -- weaker of
 CMM.Scoring.Gain(candidate, slotKey, ctx, player) -> gain, gainPct  -- slot-pair aware (§6.3)
 
 CMM.Obtain.Gate(item, player, opts) -> ok, reason          -- hard gates (§6.4)
-CMM.Obtain.Evaluate(item, player, opts) -> { tier=1..5, minutes=, src=<best source record>, text="Quest, 3 steps left, Zangarmarsh", group=bool, zone=areaId }
+CMM.Obtain.Evaluate(item, player, opts) -> { tier=1..5, minutes=, src=<best source record>, text="Quest, 3 steps left, Zangarmarsh", group=bool, zone=areaId, steps=n (Q only), quest=<quest> (Q), map= (B/T/G), npc= (R/N), own=bool (K) }
 CMM.Obtain.ChainRemaining(questId, player) -> steps, firstQuestId
 CMM.Obtain.LastsUntil(item, slotKey, ctx, player) -> level or 70
 
@@ -284,9 +284,11 @@ score, floor 0). Feral druids and casters have w.DPS = 0 so weapon choice follow
 3. Quest minLevel > level + lookahead.
 4. Source creature level > level + 3 (content too high); dungeon min level > level + lookahead.
 5. Item phase > current phase (CharDB/DB setting).
-6. Reputation vendor rank above current standing (GetFactionInfoByID) — only when the faction is known to the client.
+6. Reputation is not a gate: a reputation vendor item stays visible with a time penalty per missing rank (§6.5), so "what do I get from grinding Cenarion Expedition" stays answerable.
 7. Heroic-only sources are gated to level 70.
-Filter (not gate): source type, tier, dungeon, zone, group, armor type, special, sidegrades.
+Filter (not gate): source type, tier, dungeon, zone, group, armor type, special, sidegrades. Source-type
+filter keys are the source codes, with vendor split by mode: `V` gold, `E` badges, `H` honor/tokens, `A` arena,
+`F` reputation. Defaults: all on except `W` and `A`.
 
 ### 6.5 Tiers and expected minutes
 | Tier | When | Minutes |
@@ -295,7 +297,7 @@ Filter (not gate): source type, tier, dungeon, zone, group, armor type, special,
 | 2 guaranteed group | dungeon / group / heroic quest (type 81, 1, 85) | 15 + remaining chain × 10 |
 | 3 farmable drop | boss pct ≥ 15, chest pct ≥ 15 | (15 + t[boss]) / (pct/100) |
 | 4 lottery | boss/chest pct < 15, rare spawn, named mob, trash, world drop | boss formula; rare: max(respawn, 30) / p; named/world: 30 / p; trash: 45 / p |
-| 5 buyable | vendor (gold or extended), crafted by another profession, BoE listed only when the filter allows | vendor 5, craft 30 |
+| 5 buyable | vendor, crafted by another profession, BoE listed only when the filter allows | gold vendor 5; badge vendor 180; honor / token vendor 240; arena 900; reputation vendor 5 when the standing is met, else 180 × missing ranks (unknown standing counts as neutral); craft 30 |
 
 Best source = lowest expected minutes among the character's usable sources; tier = that source's
 tier. Efficiency = gain / (minutes / 60). Value over time = efficiency × (lastsUntil − level + 1).
