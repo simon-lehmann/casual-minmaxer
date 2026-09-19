@@ -48,6 +48,7 @@ C.PRIMARY_KEYS = { STR = true, AGI = true, STA = true, INT = true, SPI = true }
 -- Item record flags (§4.1)
 C.FLAG_UNIQUE, C.FLAG_BOE, C.FLAG_BOP, C.FLAG_SET, C.FLAG_SPECIAL, C.FLAG_HEROIC = 1, 2, 4, 8, 16, 32
 C.FLAG_ALLIANCE, C.FLAG_HORDE = 64, 128
+C.FLAG_PROFESSION = 256 -- equipping requires the crafting profession at the K source's skill
 
 -- Tunable obtainability constants (§6.5); DB.constants may override any of these.
 C.TIER = {

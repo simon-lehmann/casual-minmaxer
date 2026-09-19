@@ -105,6 +105,16 @@ function O.Gate(item, player, opts)
   if item.classmask ~= 0 and band(item.classmask, player.classMask) == 0 then return false, "class" end
   if hasFlag(item, C.FLAG_ALLIANCE) and player.faction ~= "Alliance" then return false, "faction" end
   if hasFlag(item, C.FLAG_HORDE) and player.faction ~= "Horde" then return false, "faction" end
+  if hasFlag(item, C.FLAG_PROFESSION) then
+    local okProf = false
+    for _, src in ipairs(item.src) do
+      if src.t == "K" then
+        local own = player.professions and player.professions[src.skillLine]
+        if own and own >= (src.skill or 0) then okProf = true end
+      end
+    end
+    if not okProf then return false, "profession" end
+  end
   if item.cls == 4 then
     if not C.CanUseArmor(player.class, item.sub, player.level + (opts.lookahead or 0)) then return false, "armor" end
   elseif item.cls == 2 then

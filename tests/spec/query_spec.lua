@@ -233,7 +233,7 @@ describe("Query", function()
     assert.is_false(has(goldOnly.rows, 30041))
     assert.is_false(has(goldOnly.rows, 30018))
     local honor = Q.Run("HEAD", p70, { filters = filters({ sources = { H = true } }) })
-    assert.same({ 30040 }, ids(honor.rows))
+    assert.same({ 30040, 30044 }, ids(honor.rows)) -- 30045 is a faction twin of 30044 and collapsed
     local defaults = Q.Run("HEAD", p70, { filters = CMM.Core.CHAR_DEFAULTS.filters, phase = 5 })
     assert.is_false(has(defaults.rows, 30041)) -- arena off by default
     assert.is_true(CMM.Core.CHAR_DEFAULTS.filters.sources.E)
@@ -273,5 +273,20 @@ describe("Query", function()
     H.wow.player.level = 15
     CMM.Player.Refresh()
     assert.is_false(Q.UsableBySlot(CMM.Data.Item(30404), "OFFHAND", CMM.Player.Get(), {}))
+  end)
+end)
+
+describe("Query dedupe", function()
+  it("collapses faction twins with the same name, stats and source text", function()
+    local CMM = H.Boot()
+    local res = CMM.Query.Run("HEAD", CMM.Player.Get(), { filters = { sources = { H = true }, tiers = { [5] = true } } })
+    local twins = 0
+    for _, r in ipairs(res.rows) do if r.item.name == "Twin Helm" then twins = twins + 1 end end
+    assert.equals(1, twins)
+    assert.equals(2, #CMM.Query.Dedupe({
+      { item = { name = "A", stats = { STA = 1 } }, obtain = { text = "x" } },
+      { item = { name = "A", stats = { STA = 1 } }, obtain = { text = "x" } },
+      { item = { name = "A", stats = { STA = 2 } }, obtain = { text = "x" } },
+    }))
   end)
 end)

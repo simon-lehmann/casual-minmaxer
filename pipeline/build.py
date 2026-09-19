@@ -67,7 +67,9 @@ ALLIANCE_RACES = 1101
 HORDE_RACES = 690
 
 FLAG_UNIQUE, FLAG_BOE, FLAG_BOP, FLAG_SET, FLAG_SPECIAL, FLAG_HEROIC = 1, 2, 4, 8, 16, 32
-FLAG_ALLIANCE, FLAG_HORDE = 64, 128  # proposed addition (AllowableRace restricted to one faction)
+FLAG_ALLIANCE, FLAG_HORDE = 64, 128  # AllowableRace restricted to one faction
+FLAG_PROFESSION = 256  # equipping requires the crafting profession (item_template.RequiredSkill)
+GATHERING_SKILLS = {182, 186, 356}  # herbalism, mining, fishing: items needing these are not shipped
 
 SRC_ORDER = {c: i for i, c in enumerate("QKVBGRNTW")}
 
@@ -307,6 +309,8 @@ def item_flags(item: dict, sources, heroic_only: bool) -> int:
         flags |= FLAG_SET
     if heroic_only:
         flags |= FLAG_HEROIC
+    if (item.get("RequiredSkill") or 0) in CRAFT_SKILLS:
+        flags |= FLAG_PROFESSION
     race = item.get("AllowableRace")
     if race not in (None, -1, 0, 32767, 1791):
         if race & ALLIANCE_RACES and not race & HORDE_RACES:
@@ -522,6 +526,8 @@ class Builder:
             if any(name.startswith(p) for p in BAD_NAME_PREFIX) or not name.strip():
                 continue
             if (r["RandomProperty"] or 0) != 0 or (r["RandomSuffix"] or 0) != 0:
+                continue
+            if (r["RequiredSkill"] or 0) in GATHERING_SKILLS:
                 continue
             items[r["entry"]] = r
         return items

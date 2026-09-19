@@ -160,6 +160,27 @@ local function cacheKey(slotKey, player, o)
   }, "|")
 end
 
+-- Faction twins (Alliance/Horde honor gear, Aldor/Scryer rewards) are separate item ids with the same name,
+-- stats and source text. Keep the first (best-sorted) of each such group.
+local function statsSignature(item)
+  local keys = {}
+  for k, v in pairs(item.stats or {}) do keys[#keys + 1] = k .. "=" .. tostring(v) end
+  table.sort(keys)
+  return table.concat(keys, ",")
+end
+
+function Q.Dedupe(rows)
+  local seen, out = {}, {}
+  for _, row in ipairs(rows) do
+    local sig = row.item.name .. "|" .. statsSignature(row.item) .. "|" .. tostring(row.obtain and row.obtain.text)
+    if not seen[sig] then
+      seen[sig] = true
+      out[#out + 1] = row
+    end
+  end
+  return out
+end
+
 function Q.Run(slotKey, player, opts)
   player = player or CMM.Player.Get()
   local o = resolveOpts(opts, player)
@@ -209,6 +230,7 @@ function Q.Run(slotKey, player, opts)
     end
   end
   table.sort(rows, SORTS[o.sort] or SORTS.eff)
+  rows = Q.Dedupe(rows)
   local result = { rows = rows, equippedScore = equippedScore, equippedId = equippedId, slotKey = slotKey }
   cache[key] = result
   return result

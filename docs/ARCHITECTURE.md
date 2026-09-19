@@ -289,6 +289,7 @@ score, floor 0). Feral druids and casters have w.DPS = 0 so weapon choice follow
 5. Item phase > current phase (CharDB/DB setting).
 6. Reputation is not a gate: a reputation vendor item stays visible with a time penalty per missing rank (§6.5), so "what do I get from grinding Cenarion Expedition" stays answerable.
 7. Heroic-only sources are gated to level 70.
+Result rows with the same name, stat signature and source text (faction twins) are collapsed to the first.
 Filter (not gate): source type, tier, dungeon, zone, group, armor type, special, sidegrades. Source-type
 filter keys are the source codes, with vendor split by mode: `V` gold, `E` badges, `H` honor/tokens, `A` arena,
 `F` reputation. Defaults: all on except `W` and `A`.

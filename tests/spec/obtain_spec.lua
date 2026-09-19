@@ -309,3 +309,21 @@ describe("Obtain", function()
     end)
   end)
 end)
+
+describe("Obtain profession-locked items", function()
+  local CMM
+  before_each(function() CMM = H.Boot() end)
+
+  it("gates items that require the crafting profession to equip", function()
+    local item = CMM.Data.Item(30043)
+    local ok, why = CMM.Obtain.Gate(item, CMM.Player.Get(), { lookahead = 2 })
+    assert.is_false(ok)
+    assert.equals("profession", why)
+    H.wow.player.skills = { { "Engineering", 350, 375 } }
+    CMM.Player.Refresh()
+    assert.is_true((CMM.Obtain.Gate(item, CMM.Player.Get(), { lookahead = 2 })))
+    H.wow.player.skills = { { "Engineering", 300, 375 } }
+    CMM.Player.Refresh()
+    assert.is_false((CMM.Obtain.Gate(item, CMM.Player.Get(), { lookahead = 2 })))
+  end)
+end)
