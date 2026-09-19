@@ -61,7 +61,7 @@ describe("real data pack", function()
     local bad = {}
     for id in pairs(D.items) do
       local it = CMM.Data.Item(id)
-      if not it or #it.src == 0 or not CMM.Constants.INV_TO_SLOT[it.inv] then bad[#bad + 1] = id end
+      if not it or not CMM.Constants.INV_TO_SLOT[it.inv] then bad[#bad + 1] = id end
       for key in pairs(it.stats) do
         if not CMM.Constants.STAT_SET[key] then bad[#bad + 1] = id .. ":" .. key end
       end

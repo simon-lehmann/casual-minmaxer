@@ -85,7 +85,7 @@ def clean(s: str | None) -> str:
     """Strip the separator characters from a name so it never breaks a packed record."""
     if not s:
         return ""
-    s = s.replace("|", "").replace(";", "").replace(",", "").replace(":", "")
+    s = s.replace("|", "").replace(";", "")
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
@@ -225,7 +225,9 @@ def decode_item_stats(item: dict, spells: dict):
             if aura == 99:
                 stats["FAP" if (sp.get("Stances") or 0) != 0 else "AP"] += base
             elif aura == 124:
-                stats["RAP"] += base
+                # "+X Attack Power" spells carry both aura 99 and 124; only pure ranged-AP spells count as RAP
+                if not any(sp.get(f"EffectApplyAuraName{k}") == 99 for k in range(1, 4)):
+                    stats["RAP"] += base
             elif aura == 13:
                 if misc == 126 or misc == 127:
                     stats["SP"] += base
@@ -348,6 +350,7 @@ class Builder:
         self.zones_over = load_override("zones.json", {})
         self.specials = load_override("specials.json", {})
         self.fixes = load_override("fixes.json", {})
+        self.overrides = { "vendors": load_override("vendors.json", {}) }
         self.report = defaultdict(int)
 
     # -- helpers -------------------------------------------------------------------------------
@@ -523,6 +526,30 @@ class Builder:
             items[r["entry"]] = r
         return items
 
+
+    @staticmethod
+    def vendor_mode(it, vend, badge_vendors, raid_vendors, arena_prefixes, token_ilvls):
+        """Classify a vendor source (§4.2): 0 gold, F reputation, E badges, H honor/marks/tokens, A arena;
+        None drops the source (raid tier-token vendors)."""
+        ext_entries = [e for e, ext in vend if ext]
+        gold_entries = [e for e, ext in vend if not ext]
+        if (it["RequiredReputationFaction"] or 0) > 0:
+            return f"F{it['RequiredReputationFaction']}-{it['RequiredReputationRank'] or 0}"
+        if gold_entries:
+            return "0"
+        if not ext_entries:
+            return "0"
+        name = it["name"] or ""
+        if name.startswith(arena_prefixes):
+            return "A"
+        if any(e in raid_vendors for e in ext_entries) and not any(e not in raid_vendors for e in ext_entries):
+            return None
+        if (it["itemset"] or 0) > 0 and it["ItemLevel"] in token_ilvls and "Gladiator's" not in name:
+            return None
+        if any(e in badge_vendors for e in ext_entries):
+            return "E"
+        return "H"
+
     def build(self):
         self.load_world()
         self.load_loot()
@@ -658,18 +685,26 @@ class Builder:
             if vt and entry in spawned:
                 for item, ext in tmpl.get(vt, []):
                     vendor_items[item].append((entry, ext))
+        vend_cfg = self.overrides.get("vendors", {})
+        badge_vendors = set(vend_cfg.get("badge", {}).get("creatures", []))
+        raid_vendors = set(vend_cfg.get("raid", {}).get("creatures", []))
+        badge_tmpl = set(vend_cfg.get("badge", {}).get("templates", []))
+        raid_tmpl = set(vend_cfg.get("raid", {}).get("templates", []))
+        for entry, ct in self.ct.items():
+            if ct["VendorTemplateId"] in badge_tmpl:
+                badge_vendors.add(entry)
+            if ct["VendorTemplateId"] in raid_tmpl:
+                raid_vendors.add(entry)
+        arena_prefixes = tuple(vend_cfg.get("arena_prefixes", []))
+        token_ilvls = set(vend_cfg.get("raid_token_set_ilvls", []))
         for item, vend in vendor_items.items():
             if item not in item_ids:
                 continue
             it = items[item]
             price = it["BuyPrice"] or 0
-            ext = any(e for _, e in vend)
-            if (it["RequiredReputationFaction"] or 0) > 0:
-                mode = f"F{it['RequiredReputationFaction']}-{it['RequiredReputationRank'] or 0}"
-            elif ext:
-                mode = "E"
-            else:
-                mode = "0"
+            mode = self.vendor_mode(it, vend, badge_vendors, raid_vendors, arena_prefixes, token_ilvls)
+            if mode is None:
+                continue
             sources[item].append(f"V{price}:{mode}")
             heroic_src[item].append(False)
 
@@ -715,10 +750,14 @@ class Builder:
         for iid, it in items.items():
             srcs = sources.get(iid)
             if not srcs:
-                self.report["dropped_no_source"] += 1
                 if raid_only.get(iid):
-                    self.report["dropped_raid_only"] += 1
-                continue
+                    # raid loot is not a recommendation, but it is shipped source-less so an equipped
+                    # raid item is scored from pack stats instead of the client's partial GetItemStats
+                    self.report["shipped_sourceless"] += 1
+                    srcs = []
+                else:
+                    self.report["dropped_no_source"] += 1
+                    continue
             stats, special = decode_item_stats(it, self.spells)
             if str(iid) in self.specials:
                 special = False
@@ -794,7 +833,7 @@ class Builder:
             self.out_dungeons[m] = {
                 "name": name, "min": over.get("min", inst["levelMin"] or 0), "max": over.get("max", inst["levelMax"] or 0),
                 "zone": over.get("zone", 0), "heroic": bool(over.get("heroic", m >= 500)),
-                "bosses": bosses, "t": t[:len(bosses)],
+                "bosses": bosses, "t": t[:len(bosses)], "qz": list(over.get("qz", [])),
             }
             for i, e in enumerate(bosses):
                 self.out_bosses[e] = [str(m), str(i), "0"]
@@ -903,7 +942,7 @@ class Builder:
             w(f"Items_{g}.lua", ["local D = CasualMinMaxer_Data"] +
               [f"D.items[{iid}]={lua_str(';'.join(self.out_items[iid]))}" for iid in ids])
             w(f"Sources_{g}.lua", ["local D = CasualMinMaxer_Data"] +
-              [f"D.src[{iid}]={lua_str('|'.join(self.out_src[iid]))}" for iid in ids])
+              [f"D.src[{iid}]={lua_str('|'.join(self.out_src[iid]))}" for iid in ids if self.out_src.get(iid)])
         w("Quests.lua", ["local D = CasualMinMaxer_Data"] +
           [f"D.quests[{q}]={lua_str(';'.join(rec))}" for q, rec in self.out_quests.items()])
         w("Npcs.lua", ["local D = CasualMinMaxer_Data"] +
@@ -912,9 +951,10 @@ class Builder:
           [f"D.bosses[{e}]={lua_str(';'.join(rec))}" for e, rec in sorted(self.out_bosses.items())])
         dl = ["local D = CasualMinMaxer_Data"]
         for m, d in sorted(self.out_dungeons.items()):
-            dl.append("D.dungeons[%d]={name=%s,min=%d,max=%d,zone=%d,heroic=%s,bosses={%s},t={%s}}" % (
+            dl.append("D.dungeons[%d]={name=%s,min=%d,max=%d,zone=%d,heroic=%s,bosses={%s},t={%s},qz={%s}}" % (
                 m, lua_str(d["name"]), d["min"], d["max"], d["zone"], "true" if d["heroic"] else "false",
-                ",".join(str(b) for b in d["bosses"]), ",".join(str(t) for t in d["t"])))
+                ",".join(str(b) for b in d["bosses"]), ",".join(str(t) for t in d["t"]),
+                ",".join(str(z) for z in d.get("qz", []))))
         w("Dungeons.lua", dl)
         w("Objects.lua", ["local D = CasualMinMaxer_Data"] +
           [f"D.objects[{e}]={lua_str(';'.join(rec))}" for e, rec in self.out_objects.items()])

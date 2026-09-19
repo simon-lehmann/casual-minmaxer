@@ -96,7 +96,7 @@ def test_item_record_shape(tables):
     for iid, rec in tables["items"].items():
         f = rec.split(";")
         assert len(f) == 13, (iid, rec)
-        assert f[0] and not re.search(r"[;,:|]", f[0])
+        assert f[0] and not re.search(r"[;|]", f[0])
         assert int(f[1]) in build.INV_GROUP and int(f[2]) in (2, 4) and int(f[4]) in (2, 3, 4)
         assert 1 <= int(f[12]) <= 5
         for kv in filter(None, f[9].split(",")):
@@ -111,12 +111,15 @@ def test_item_record_shape(tables):
 
 
 def test_every_item_has_sources_and_vice_versa(tables):
-    assert set(tables["items"]) == set(tables["src"])
+    # every sourced item exists; items without sources are raid-only (shipped for equipped scoring)
+    assert set(tables["src"]) <= set(tables["items"])
+    sourceless = set(tables["items"]) - set(tables["src"])
+    assert 500 < len(sourceless) < 2500
     assert len(tables["items"]) > 8000
 
 
 def test_sources_reference_existing_records(tables):
-    src_re = re.compile(r"^(Q\d+|B\d+:[\d.]+|R\d+:[\d.]+|N\d+:[\d.]+|T\d+:[\d.]+|G\d+:[\d.]+|V\d+:(0|E|F\d+-\d)|K\d+:\d+|W[\d.]+)$")
+    src_re = re.compile(r"^(Q\d+|B\d+:[\d.]+|R\d+:[\d.]+|N\d+:[\d.]+|T\d+:[\d.]+|G\d+:[\d.]+|V\d+:(0|E|H|A|F\d+-\d)|K\d+:\d+|W[\d.]+)$")
     for iid, s in tables["src"].items():
         for part in s.split("|"):
             assert src_re.match(part), (iid, part)
@@ -149,9 +152,9 @@ def test_sources_are_sorted_best_first(tables):
         assert parts == build.sort_sources(parts), iid
 
 
-def test_raid_items_are_not_shipped(tables):
+def test_raid_items_have_no_dungeon_sources(tables):
     for raid_item in (19019, 28830, 20580, 30099):  # Thunderfury, Dragonspine Trophy, Hammer of Bestial Fury, Frenzied Nightsaber? (any raid id)
-        assert raid_item not in tables["items"] or not any(p[0] in "BT" for p in tables["src"][raid_item].split("|"))
+        assert raid_item not in tables["src"] or not any(p[0] in "BT" for p in tables["src"][raid_item].split("|"))
 
 
 def test_dungeon_records(tables):

@@ -107,8 +107,8 @@ Armor subclasses (class 4): 0 misc, 1 cloth, 2 leather, 3 mail, 4 plate, 6 shiel
 
 The data addon fills the global `CasualMinMaxer_Data` (short: `D`). It is `LoadOnDemand`, loaded by
 `Data.lua` on first use. Item records are packed strings decoded lazily into a cache (memory). All
-strings are `;`-separated fields; lists inside a field use `,`; key-value lists use `KEY:value`. Fields
-never contain `;` `,` `:` `|` (the pipeline strips them from names).
+strings are `;`-separated fields; lists inside a field use `,`; key-value lists use `KEY:value`. Name and
+title fields never contain `;` or `|` (the pipeline strips them); they may contain `,` and `:`.
 
 ### 4.1 Items — `D.items[itemId] = "name;inv;cls;sub;q;ilvl;req;classmask;flags;stats;sockets;sbonus;phase"`
 
@@ -150,7 +150,8 @@ Decoded shape (`Data.ParseSources`, also `item.src`, parsed on access): `{t="Q",
 `{t="B"|"R"|"N", npc=entry, pct=n}`, `{t="T", map=id, pct=n}`, `{t="G", object=entry, pct=n}`,
 `{t="V", price=copper, mode="0"|"E"|"F", faction=id, rank=n}`, `{t="K", skillLine=id, skill=n}`, `{t="W", pct=n}`.
 
-An item with no source is not shipped. Sources are sorted best-first by the pipeline (Q, K, V, B, G, R, N, T, W)
+An item with no source is not shipped, except raid-only items: they are shipped without a `D.src` entry so an
+equipped raid item is scored from pack stats. `Query` never lists an item that has no sources. Sources are sorted best-first by the pipeline (Q, K, V, B, G, R, N, T, W)
 but the addon recomputes the best source per character.
 
 ### 4.3 Quests — `D.quests[questId] = "title;minLevel;questLevel;races;classes;zone;type;prev;next;excl;choice;fixed"`
@@ -173,11 +174,13 @@ respawnMin: minimum respawn in minutes (0 if unknown).
 index: encounter order from DungeonEncounter (0-based). heroic: 1 if this is the heroic version
 of the creature (CMaNGOS HeroicEntry), 0 otherwise. Heroic bosses share the map id.
 
-### 4.6 Dungeons — `D.dungeons[mapId] = { name=, min=, max=, zone=, heroic=, bosses={entry,...}, t={min,...} }`
+### 4.6 Dungeons — `D.dungeons[mapId] = { name=, min=, max=, zone=, heroic=, bosses={entry,...}, t={min,...}, qz={areaId,...} }`
 
 `bosses` in encounter order; `t[i]` = hand-tuned minutes from instance entrance to boss i for a
 leveling-appropriate group (overrides/dungeons.json; default 6 + 7 × i). `heroic` true when a
-heroic mode exists (all TBC 5-mans). `zone` = AreaTable id of the entrance zone. Only 5-player
+heroic mode exists (all TBC 5-mans). `zone` = AreaTable id of the entrance zone. `qz` = AreaTable ids that
+dungeon quests use as their zone (the hub, e.g. Coilfang Reservoir 3905, or the instance's own area); the
+dungeon filter matches quest rows whose zone is `zone` or in `qz`. Only 5-player
 instances are shipped; raids are excluded (design non-goal).
 
 ### 4.7 Objects — `D.objects[goEntry] = "name;map"` for G sources.

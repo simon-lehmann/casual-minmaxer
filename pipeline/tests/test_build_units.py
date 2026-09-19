@@ -205,7 +205,7 @@ def test_fmt_pct():
 
 # ---------------------------------------------------------------------------------------- format
 def test_clean_strips_separators():
-    assert build.clean("Foo; Bar, Baz: Qux|x") == "Foo Bar Baz Quxx"
+    assert build.clean("Foo; Bar, Baz: Qux|x") == "Foo Bar, Baz: Quxx"
     assert build.clean("  a   b ") == "a b"
     assert build.clean(None) == ""
 
@@ -238,3 +238,21 @@ def test_item_flags():
     it = {"maxcount": 0, "Flags": 0x80000, "bonding": 2, "itemset": 5, "AllowableRace": 690}
     assert build.item_flags(it, [], True) == (build.FLAG_UNIQUE | build.FLAG_BOE | build.FLAG_SET |
                                               build.FLAG_HEROIC | build.FLAG_HORDE)
+
+
+def test_vendor_mode_classification():
+    from build import Builder
+    item = {"RequiredReputationFaction": 0, "RequiredReputationRank": 0, "name": "Some Helm", "itemset": 0, "ItemLevel": 100}
+    badge, raid = {18525}, {23381}
+    prefixes = ("Merciless Gladiator's", "Vengeful Gladiator's", "Brutal Gladiator's")
+    tokens = {120, 133, 146, 154, 159}
+    vm = Builder.vendor_mode
+    assert vm(item, [(1, 0)], badge, raid, prefixes, tokens) == "0"
+    assert vm(item, [(1, 0), (18525, 5)], badge, raid, prefixes, tokens) == "0"  # gold wins
+    assert vm(item, [(18525, 5)], badge, raid, prefixes, tokens) == "E"
+    assert vm(item, [(999, 5)], badge, raid, prefixes, tokens) == "H"
+    assert vm(item, [(23381, 5)], badge, raid, prefixes, tokens) is None  # raid token vendor
+    assert vm(dict(item, name="Brutal Gladiator's Plate Helm", itemset=1, ItemLevel=159), [(999, 5)], badge, raid, prefixes, tokens) == "A"
+    assert vm(dict(item, name="Gladiator's Plate Helm", itemset=1, ItemLevel=123), [(999, 5)], badge, raid, prefixes, tokens) == "H"
+    assert vm(dict(item, name="Warbringer Chestguard", itemset=1, ItemLevel=120), [(999, 5)], badge, raid, prefixes, tokens) is None
+    assert vm(dict(item, RequiredReputationFaction=942, RequiredReputationRank=6), [(999, 5)], badge, raid, prefixes, tokens) == "F942-6"
