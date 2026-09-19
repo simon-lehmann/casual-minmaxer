@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 (2026-09-19)
+
+- Random-suffix rows carry the roll chance from the loot tables; rare rolls cost proportionally more time and
+  rolls under 0.5 % are not listed.
+- One row per base item with the best suffix; the other good suffixes and their chances sit in the detail panel.
+- At most 8 auction-house rows per slot (options: "Auction rows per slot", "Minimum suffix roll chance %").
+- Saved tier constants are re-applied after a reload (previously lost until changed again).
+
 ## 0.2.0 (2026-09-19)
 
 - Random-suffix and random-property greens are listed as auction-house candidates, one row per useful
