@@ -1,0 +1,46 @@
+local H = require("tests.helpers")
+
+describe("Ratings", function()
+  local CMM
+  before_each(function() CMM = H.LoadAddon() end)
+
+  it("matches the known level 70 conversions", function()
+    local R = CMM.Ratings
+    assert.is_near(15.77, R.PerPercent("HIT", 70), 0.01)
+    assert.is_near(22.08, R.PerPercent("CRIT", 70), 0.01)
+    assert.is_near(22.08, R.PerPercent("SPCRIT", 70), 0.01)
+    assert.is_near(12.62, R.PerPercent("SPHIT", 70), 0.01)
+    assert.is_near(2.37, R.PerPercent("DEF", 70), 0.01)
+    assert.is_near(18.92, R.PerPercent("DODGE", 70), 0.01)
+    assert.is_near(23.65, R.PerPercent("PARRY", 70), 0.01)
+    assert.is_near(7.88, R.PerPercent("BLOCK", 70), 0.01)
+    assert.is_near(39.42, R.PerPercent("RES", 70), 0.01)
+    assert.is_near(3.94, R.PerPercent("EXP", 70), 0.01)
+    assert.is_near(15.77, R.PerPercent("HASTE", 70), 0.01)
+  end)
+
+  it("uses the base values at level 60", function()
+    assert.is_near(10, CMM.Ratings.PerPercent("HIT", 60), 1e-9)
+    assert.is_near(14, CMM.Ratings.PerPercent("CRIT", 60), 1e-9)
+    assert.is_near(25, CMM.Ratings.PerPercent("RES", 60), 1e-9)
+  end)
+
+  it("scales below 60 and is flat below 11", function()
+    assert.is_near(10 * 12 / 52, CMM.Ratings.PerPercent("HIT", 20), 1e-9)
+    assert.is_near(10 * 2 / 52, CMM.Ratings.PerPercent("HIT", 10), 1e-9)
+    assert.is_near(10 * 2 / 52, CMM.Ratings.PerPercent("HIT", 1), 1e-9)
+    assert.is_near(10 * 51 / 52, CMM.Ratings.PerPercent("HIT", 59), 1e-9)
+  end)
+
+  it("converts rating to percent and passes non-ratings through", function()
+    assert.is_near(1, CMM.Ratings.ToPercent("HIT", 15.7692, 70), 0.001)
+    assert.is_near(2, CMM.Ratings.ToPercent("CRIT", 28, 60), 1e-9)
+    assert.equals(50, CMM.Ratings.ToPercent("STR", 50, 60))
+    assert.is_nil(CMM.Ratings.PerPercent("STR", 60))
+  end)
+
+  it("clamps levels outside 1..70", function()
+    assert.equals(CMM.Ratings.LevelFactor(70), CMM.Ratings.LevelFactor(80))
+    assert.equals(CMM.Ratings.LevelFactor(1), CMM.Ratings.LevelFactor(0))
+  end)
+end)

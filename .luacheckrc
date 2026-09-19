@@ -4,7 +4,7 @@ codes = true
 ignore = { "212/self", "211/_.*", "213" }
 exclude_files = { "CasualMinMaxer/Libs/**", "CasualMinMaxer_Data/**", "tests/fixtures/**" }
 
-globals = { "CasualMinMaxer", "CasualMinMaxerDB", "CasualMinMaxerCharDB", "CasualMinMaxer_Data",
+globals = { "SlashCmdList", "CasualMinMaxer", "CasualMinMaxerDB", "CasualMinMaxerCharDB", "CasualMinMaxer_Data",
             "SLASH_CASUALMINMAXER1", "SLASH_CASUALMINMAXER2" }
 
 read_globals = {
