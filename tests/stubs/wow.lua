@@ -27,6 +27,8 @@ _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 _G.tinsert, _G.tremove = table.insert, table.remove
 _G.format = string.format
 _G.strlower, _G.strupper = string.lower, string.upper
+_G.strmatch, _G.strfind, _G.strsub, _G.strrep, _G.strlen = string.match, string.find, string.sub, string.rep, string.len
+_G.strbyte, _G.strchar, _G.gsub, _G.gmatch = string.byte, string.char, string.gsub, string.gmatch
 _G.floor, _G.ceil, _G.max, _G.min, _G.abs = math.floor, math.ceil, math.max, math.min, math.abs
 _G.sort = table.sort
 _G.tContains = function(t, v) for _, x in pairs(t) do if x == v then return true end end return false end
@@ -161,7 +163,7 @@ function Frame:Hide() self.shown = false end
 function Frame:Show() self.shown = true end
 function Frame:IsShown() return self.shown end
 function Frame:IsVisible() return self.shown end
-function Frame:SetSize() end
+function Frame:SetSize(w, h) self.width, self.height = w, h end
 function Frame:SetPoint() end
 function Frame:ClearAllPoints() end
 function Frame:SetParent() end
@@ -174,10 +176,10 @@ function Frame:SetFrameStrata() end
 function Frame:SetScale() end
 function Frame:GetScale() return 1 end
 function Frame:SetAlpha() end
-function Frame:SetWidth() end
-function Frame:SetHeight() end
-function Frame:GetWidth() return 100 end
-function Frame:GetHeight() return 20 end
+function Frame:SetWidth(w) self.width = w end
+function Frame:SetHeight(h) self.height = h end
+function Frame:GetWidth() return self.width or 100 end
+function Frame:GetHeight() return self.height or 20 end
 function Frame:SetBackdrop() end
 function Frame:SetBackdropColor() end
 function Frame:SetBackdropBorderColor() end
@@ -253,6 +255,29 @@ function Frame:SetInventoryItem() end
 function Frame:SetQuestItem() end
 function Frame:SetQuestLogItem() end
 function Frame:Raise() end
+function Frame:SetThumbTexture() end
+function Frame:SetFrameLevel(l) self.level = l end
+function Frame:GetFrameLevel() return self.level or 1 end
+function Frame:SetFocus() end
+function Frame:GetEffectiveScale() return 1 end
+function Frame:GetLeft() return 0 end
+function Frame:GetTop() return 0 end
+function Frame:IsMouseOver() return false end
+function Frame:SetEnabled(e) self.enabled = e end
+function Frame:IsEnabled() return self.enabled ~= false end
+function Frame:UpdateScrollChildRect() end
+function Frame:GetVerticalScrollRange() return 0 end
+function Frame:SetHitRectInsets() end
+function Frame:SetStepsPerPage() end
+function Frame:GetMinMaxValues() return 0, 1 end
+function Frame:SetFixedFrameStrata() end
+function Frame:SetFixedFrameLevel() end
+function Frame:GetFrameStrata() return "MEDIUM" end
+function Frame:SetIgnoreParentScale() end
+function Frame:GetNumPoints() return 1 end
+function Frame:GetObjectType() return "Frame" end
+function Frame:GetChildren() return nil end
+function Frame:GetRegions() return nil end
 
 M.frames = {}
 _G.CreateFrame = function(_, name, parent)
@@ -274,6 +299,39 @@ _G.PlaySound = function() end
 _G.SOUNDKIT = {}
 _G.RAID_CLASS_COLORS = setmetatable({}, { __index = function() return { r = 1, g = 1, b = 1, colorStr = "ffffffff" } end })
 _G.print = function(...) M.chat = M.chat or {}; M.chat[#M.chat + 1] = table.concat({ ... }, " ") end
+
+-- Dropdown menus: initialization functions are stored and can be run with M.OpenDropdown(frame)
+M.menuButtons = {}
+_G.UIDropDownMenu_Initialize = function(f, fn, displayMode) f.initFn = fn; f.displayMode = displayMode end
+_G.UIDropDownMenu_SetWidth = function(f, w) f.ddWidth = w end
+_G.UIDropDownMenu_SetText = function(f, t) f.ddText = t end
+_G.UIDropDownMenu_CreateInfo = function() return {} end
+_G.UIDropDownMenu_AddButton = function(info) M.menuButtons[#M.menuButtons + 1] = info end
+_G.ToggleDropDownMenu = function(_, _, f) if f and f.initFn then M.menuButtons = {} f.initFn(f, 1) end end
+_G.CloseDropDownMenus = function() end
+_G.EasyMenu = function(items) M.menuButtons = items end
+function M.OpenDropdown(f)
+  M.menuButtons = {}
+  if f and f.initFn then f.initFn(f, 1) end
+  return M.menuButtons
+end
+M.optionsPanels = {}
+_G.InterfaceOptions_AddCategory = function(panel) M.optionsPanels[#M.optionsPanels + 1] = panel end
+_G.InterfaceOptionsFrame_OpenToCategory = function() end
+_G.ChatEdit_InsertLink = function(link) M.lastChatLink = link return true end
+_G.DressUpItemLink = function(link) M.lastDressUp = link return true end
+_G.IsShiftKeyDown = function() return M.shift == true end
+_G.IsControlKeyDown = function() return M.ctrl == true end
+_G.IsAltKeyDown = function() return false end
+_G.GetItemIcon = function(id) return M.items[id] and (M.items[id].icon or 134400) or nil end
+M.questChoices = {} -- [i] = item link shown on the quest reward frame
+_G.GetNumQuestChoices = function() return #M.questChoices end
+_G.GetQuestItemLink = function(_, i) return M.questChoices[i] end
+_G.QuestInfoRewardsFrame = CreateFrame("Frame", "QuestInfoRewardsFrame")
+_G.QuestInfoRewardsFrame.RewardButtons = {}
+_G.QuestFrameRewardPanel = CreateFrame("Frame", "QuestFrameRewardPanel")
+_G.C_Map.GetMapChildrenInfo = function() return {} end
+_G.Minimap = CreateFrame("Frame", "Minimap")
 
 -- Fire an event to every frame that registered it
 function M.FireEvent(event, ...)
